@@ -24,6 +24,7 @@ executable MinimalOculusGLFWHaskell
     base >=4.8 && <4.9,
     gl,
     GLFW-b,
-    bindings-Oculus
+    bindings-Oculus,
+    mtl
   -- hs-source-dirs:      
   default-language:    Haskell2010

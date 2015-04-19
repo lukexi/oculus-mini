@@ -18,6 +18,8 @@ cabal-version:       >=1.10
 
 executable MinimalOculusGLFWHaskell
   main-is:             Main.hs
+  c-sources:           oculus.c
+  frameworks:          LibOVRRT_0
   -- other-modules:       
   -- other-extensions:    
   build-depends:       

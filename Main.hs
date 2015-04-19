@@ -1,11 +1,46 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GL
-import Bindings.OculusRift
-import Bindings.OculusRift.Types hiding (trackingCaps, distortionCaps, hmdCaps, texID)
 import Data.Bits
 import Control.Monad
 import Control.Monad.Trans
 import Foreign
+import Foreign.C
+
+
+newtype HMD                = HMD (Ptr HMD)
+newtype HMDToEyeViewOffset = HMDToEyeViewOffset (Ptr HMDToEyeViewOffset)
+newtype OVRPose            = OVRPose (Ptr OVRPose)
+newtype OVRTexture         = OVRTexture (Ptr OVRTexture)
+
+type FrameIndex = CUInt
+
+foreign import ccall "createHMD" 
+    createHMD :: IO HMD
+
+foreign import ccall "configureHMD" 
+    configureHMD :: HMD -> IO HMDToEyeViewOffset
+
+foreign import ccall "getHMDRenderTargetSize" 
+    getHMDRenderTargetSize :: HMD -> IO (Ptr CInt)
+
+foreign import ccall "createOVRTextureArray" 
+    createOVRTextureArray :: GLuint -> CInt -> CInt -> IO OVRTexture
+
+foreign import ccall "ovrHmd_BeginFrame" 
+    ovrHmd_BeginFrame :: HMD -> FrameIndex -> IO CInt
+
+foreign import ccall "beginFrame" 
+    beginFrame :: HMD -> IO ()
+
+foreign import ccall "getEyePoses" 
+    getEyePoses :: HMD -> HMDToEyeViewOffset -> IO OVRPose
+
+foreign import ccall "ovrHmd_EndFrame" 
+    ovrHmd_EndFrame :: HMD -> OVRPose -> OVRTexture -> IO ()
+
+foreign import ccall "free" 
+    freeEyePoses :: OVRPose -> IO ()
 
 overPtr :: (MonadIO m, Storable a) => (Ptr a -> IO b) -> m a
 overPtr f =
@@ -16,19 +51,23 @@ overPtr f =
 main :: IO ()
 main = do
 
-    _ <- ovr_Initialize
+    hmd <- createHMD
 
-    hmd     <- ovrHmd_CreateDebug ovrHmd_DK2
-    hmdDesc <- castToOvrHmdDesc hmd
-    let hmdRes = resolution hmdDesc
+    -- Should extract this from the HMD
+    let (resX, resY) = (1920, 1080)
+    win <- setupGLFW resX resY
 
-    win <- setupGLFW (si_w hmdRes) (si_h hmdRes)
+    eyeViewOffsets <- configureHMD hmd
 
-    (fbo, eyeTexture, eyeViewOffsets) <- setupOculus hmd
+    [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize hmd
 
+    (frameBuffer, frameBufferTexture) <- createFrameBuffer (fromIntegral renderTargetSizeW) (fromIntegral renderTargetSizeH)
+
+    ovrTextureArray <- createOVRTextureArray frameBufferTexture renderTargetSizeW renderTargetSizeH
+    
     glClearColor 0 1 1 1
 
-    mainLoop win hmd fbo eyeTexture eyeViewOffsets 0
+    forever $ mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets
     return ()
 
 setupGLFW :: Int -> Int -> IO GLFW.Window
@@ -52,20 +91,19 @@ setupGLFW desiredW desiredH = do
     GLFW.swapInterval 1
     return win
 
-mainLoop :: GLFW.Window -> OvrHmd -> GLuint -> [OvrTexture] -> [OvrVector3f] -> Word32 -> IO a
-mainLoop win hmd fbo eyeTexture eyeViewOffsets frameNo = do
-
+mainLoop :: GLFW.Window -> HMD -> GLuint -> OVRTexture -> HMDToEyeViewOffset -> IO ()
+mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets = do
     -- Get mouse/keyboard/OS events from GLFW
     GLFW.pollEvents
 
     -- Tell OVR API we're about to render a frame
-    ovrHmd_BeginFrame hmd frameNo
+    beginFrame hmd
 
     -- Bind the eye texture as the frame buffer to render into
-    glBindFramebuffer GL_FRAMEBUFFER fbo
+    glBindFramebuffer GL_FRAMEBUFFER frameBuffer
 
     -- Get the current orientation and position of the HMD
-    eyePoses <- ovrHmd_GetEyePoses hmd frameNo eyeViewOffsets
+    eyePoses <- getEyePoses hmd eyeViewOffsets
 
     -- Normally we'd render something here beyond just clearing the screen to a color
     glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
@@ -75,63 +113,11 @@ mainLoop win hmd fbo eyeTexture eyeViewOffsets frameNo = do
 
     -- Tell OVR API that we've finished our frame, passing the eyePoses and render texture so it can
     -- distort, timewarp, and blit to the screen.
-    ovrHmd_EndFrame hmd eyePoses eyeTexture
+    ovrHmd_EndFrame hmd eyePoses frameBufferTexture
+    freeEyePoses eyePoses
 
-    mainLoop win hmd fbo eyeTexture eyeViewOffsets (succ frameNo)
-
-
-setupOculus :: OvrHmd -> IO (GLuint, [OvrTexture], [OvrVector3f])
-setupOculus hmd = do
-  hmdDesc <- castToOvrHmdDesc hmd
-  
-  let trackingCaps =  ovrTrackingCap_Orientation  
-                  .|. ovrTrackingCap_MagYawCorrection
-                  .|. ovrTrackingCap_Position
-  _ <- ovrHmd_ConfigureTracking hmd trackingCaps ovrTrackingCap_None
-  
-  (eyeTextures, fbo) <- genTextureAndFramebuffer hmd
-
-  let configHeader  = OvrRenderAPIConfigHeader
-                        ovrRenderAPI_OpenGL
-                        (resolution hmdDesc) 
-                        0 --  1 <- multisampling on/off
-      apiConfig     = OvrRenderAPIConfig configHeader Nothing Nothing
-      distortionCaps = ovrDistortionCap_TimeWarp
-                   .|. ovrDistortionCap_Vignette
-                   .|. ovrDistortionCap_Overdrive 
-                   .|. ovrDistortionCap_HqDistortion
-  
-  lfv <- ovrHmd_GetDefaultFov hmd ovrEye_Left
-  rfv <- ovrHmd_GetDefaultFov hmd ovrEye_Right
-  (_, eyeRD) <- ovrHmd_ConfigureRendering hmd (Just apiConfig) distortionCaps [lfv,rfv]
-  
-  let hmdCaps = ovrHmdCap_ExtendDesktop 
-             .|. ovrHmdCap_LowPersistence
-             .|. ovrHmdCap_DynamicPrediction
-  ovrHmd_SetEnabledCaps hmd hmdCaps
-
-  ovrHmd_RecenterPose hmd
-
-  return (fbo, eyeTextures, map hmdToEyeViewOffset eyeRD)
-
-genTextureAndFramebuffer :: OvrHmd -> IO ([OvrTexture], GLuint)
-genTextureAndFramebuffer hmd = do
-  recommenedTex0Size <- ovrHmd_GetDefaultFovTextureSize hmd ovrEye_Left 1.0
-  recommenedTex1Size <- ovrHmd_GetDefaultFovTextureSize hmd ovrEye_Right 1.0
-  let renderTargetSizeW = si_w recommenedTex0Size
-                        + si_w recommenedTex1Size
-      renderTargetSizeH = si_h recommenedTex0Size `max` 
-                          si_h recommenedTex1Size
-      renderTargetSizeWI = fromIntegral renderTargetSizeW
-      renderTargetSizeHI = fromIntegral renderTargetSizeH
-  eyeTextureObject <- genColorTexture renderTargetSizeWI renderTargetSizeHI
-  fbo              <- genColorFrameBuffer eyeTextureObject renderTargetSizeWI renderTargetSizeHI
-  --
-  let eyeTextures = genEyeTextureData eyeTextureObject renderTargetSizeW renderTargetSizeH
-  return (eyeTextures, fbo)
-
-genColorTexture :: GLsizei -> GLsizei -> IO GLuint
-genColorTexture sizeX sizeY = do
+createFrameBufferTexture :: GLsizei -> GLsizei -> IO GLuint
+createFrameBufferTexture sizeX sizeY = do
     texID <- overPtr (glGenTextures 1)
     
     glBindTexture   GL_TEXTURE_2D texID
@@ -144,42 +130,30 @@ genColorTexture sizeX sizeY = do
     
     return texID
 
-genColorFrameBuffer :: GLuint -> GLsizei -> GLsizei -> IO GLuint
-genColorFrameBuffer eyeTextureObject sizeX sizeY = do
-    fbo <- overPtr (glGenFramebuffers 1)
+createFrameBuffer :: GLsizei -> GLsizei -> IO (GLuint, GLuint)
+createFrameBuffer sizeX sizeY = do
+    frameBufferTexture <- createFrameBufferTexture sizeX sizeY
+
+    frameBuffer <- overPtr (glGenFramebuffers 1)
 
     -- Attach the eye texture as the color buffer
-    glBindFramebuffer GL_FRAMEBUFFER fbo
-    glFramebufferTexture2D GL_FRAMEBUFFER GL_COLOR_ATTACHMENT0 GL_TEXTURE_2D eyeTextureObject 0
+    glBindFramebuffer GL_FRAMEBUFFER frameBuffer
+    glFramebufferTexture2D GL_FRAMEBUFFER GL_COLOR_ATTACHMENT0 GL_TEXTURE_2D frameBufferTexture 0
 
     -- Generate a render buffer for depth
-    rbo <- overPtr (glGenRenderbuffers 1)
+    renderBuffer <- overPtr (glGenRenderbuffers 1)
 
     -- Configure the depth buffer dimensions to match the eye texture
-    glBindRenderbuffer GL_RENDERBUFFER rbo
+    glBindRenderbuffer GL_RENDERBUFFER renderBuffer
     glRenderbufferStorage GL_RENDERBUFFER GL_DEPTH_COMPONENT16 sizeX sizeY
     glBindRenderbuffer GL_RENDERBUFFER 0
 
     -- Attach the render buffer as the depth target
-    glFramebufferRenderbuffer GL_FRAMEBUFFER GL_DEPTH_ATTACHMENT GL_RENDERBUFFER rbo
+    glFramebufferRenderbuffer GL_FRAMEBUFFER GL_DEPTH_ATTACHMENT GL_RENDERBUFFER renderBuffer
 
     -- Unbind the framebuffer
     glBindFramebuffer GL_FRAMEBUFFER 0
 
-    return fbo
+    return (frameBuffer, frameBufferTexture)
 
-genEyeTextureData :: GLuint -> Int -> Int -> [OvrTexture]
-genEyeTextureData textureID width height = 
-  [ OvrTexture hd0 (fromIntegral textureID) , OvrTexture hd1 (fromIntegral textureID) ]
-  where
-    vpSize = OvrSizei (div width 2) height
-    hd0 = OvrTextureHeader
-             { apiT = ovrRenderAPI_OpenGL
-             , textureSize = OvrSizei width height
-             , renderViewport = OvrRecti (OvrVector2i 0 0) vpSize
-             }
-    hd1 = OvrTextureHeader
-             { apiT = ovrRenderAPI_OpenGL
-             , textureSize = OvrSizei width height
-             , renderViewport = OvrRecti (OvrVector2i (div width 2) 0) vpSize
-             }
+

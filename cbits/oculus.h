@@ -1,5 +1,5 @@
-#include "include/OVR_CAPI_0_5_0.h"
-#include "include/OVR_CAPI_GL.h"
+#include "../include/OVR_CAPI_0_5_0.h"
+#include "../include/OVR_CAPI_GL.h"
 
 ovrHmd createHMD();
 

@@ -1,46 +1,11 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GL
+import Graphics.Oculus
 import Data.Bits
 import Control.Monad
 import Control.Monad.Trans
 import Foreign
-import Foreign.C
-
-
-newtype HMD                = HMD (Ptr HMD)
-newtype HMDToEyeViewOffset = HMDToEyeViewOffset (Ptr HMDToEyeViewOffset)
-newtype OVRPose            = OVRPose (Ptr OVRPose)
-newtype OVRTexture         = OVRTexture (Ptr OVRTexture)
-
-type FrameIndex = CUInt
-
-foreign import ccall "createHMD" 
-    createHMD :: IO HMD
-
-foreign import ccall "configureHMD" 
-    configureHMD :: HMD -> IO HMDToEyeViewOffset
-
-foreign import ccall "getHMDRenderTargetSize" 
-    getHMDRenderTargetSize :: HMD -> IO (Ptr CInt)
-
-foreign import ccall "createOVRTextureArray" 
-    createOVRTextureArray :: GLuint -> CInt -> CInt -> IO OVRTexture
-
-foreign import ccall "ovrHmd_BeginFrame" 
-    ovrHmd_BeginFrame :: HMD -> FrameIndex -> IO CInt
-
-foreign import ccall "beginFrame" 
-    beginFrame :: HMD -> IO ()
-
-foreign import ccall "getEyePoses" 
-    getEyePoses :: HMD -> HMDToEyeViewOffset -> IO OVRPose
-
-foreign import ccall "ovrHmd_EndFrame" 
-    ovrHmd_EndFrame :: HMD -> OVRPose -> OVRTexture -> IO ()
-
-foreign import ccall "free" 
-    freeEyePoses :: OVRPose -> IO ()
 
 overPtr :: (MonadIO m, Storable a) => (Ptr a -> IO b) -> m a
 overPtr f =
@@ -63,11 +28,11 @@ main = do
 
     (frameBuffer, frameBufferTexture) <- createFrameBuffer (fromIntegral renderTargetSizeW) (fromIntegral renderTargetSizeH)
 
-    ovrTextureArray <- createOVRTextureArray frameBufferTexture renderTargetSizeW renderTargetSizeH
+    ovrTextureArray <- createOVRTextureArray (FramebufferTextureID (fromIntegral frameBufferTexture)) renderTargetSizeW renderTargetSizeH
     
     glClearColor 0 1 1 1
 
-    forever $ mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets
+    _ <- forever $ mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets
     return ()
 
 setupGLFW :: Int -> Int -> IO GLFW.Window

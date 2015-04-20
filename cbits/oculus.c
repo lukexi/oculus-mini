@@ -43,6 +43,7 @@ const ovrVector3f *configureHMD(ovrHmd hmd) {
     // Reset the pose
     ovrHmd_RecenterPose(hmd);
 
+    // Grab the eyeViewOffsets needed for configure the camera and passing to ovr_EndFrame
     ovrVector3f *eyeViewOffsets = malloc(sizeof(ovrVector3f) * 2);
     eyeViewOffsets[0] = eyeRenderDescs[0].HmdToEyeViewOffset;
     eyeViewOffsets[1] = eyeRenderDescs[1].HmdToEyeViewOffset;

@@ -2,12 +2,19 @@
 module Graphics.Oculus where
 import Foreign
 import Foreign.C
+import Linear
 
 -- | Opaque newtypes for data we need to transport but not inspect
 newtype HMD                = HMD (Ptr HMD)
+
+newtype OVREyeRenderDesc   = OVREyeRenderDesc (Ptr OVREyeRenderDesc)
+
 newtype HMDToEyeViewOffset = HMDToEyeViewOffset (Ptr HMDToEyeViewOffset)
+
 newtype OVRPose            = OVRPose (Ptr OVRPose)
 newtype OVRTexture         = OVRTexture (Ptr OVRTexture)
+
+newtype OVRFOVPort         = OVRFOVPort (Ptr OVRFOVPort)
 
 newtype FramebufferTextureID = FramebufferTextureID CUInt
 
@@ -17,7 +24,13 @@ foreign import ccall "createHMD"
 
 -- | Configures the HMD with sane defaults, and returns the HMDToEyeViewOffsets needed for getEyePoses
 foreign import ccall "configureHMD" 
-    configureHMD :: HMD -> IO HMDToEyeViewOffset
+    configureHMD :: HMD -> IO OVREyeRenderDesc
+
+foreign import ccall "getEyeRenderDesc_HmdToEyeViewOffsets" 
+    getEyeRenderDesc_HmdToEyeViewOffsets :: OVREyeRenderDesc -> IO HMDToEyeViewOffset
+
+foreign import ccall "getEyeRenderDesc_FOV" 
+    getEyeRenderDesc_FOV :: OVREyeRenderDesc -> CInt -> IO OVRFOVPort
 
 -- | Returns the size of the texture/framebuffer/renderbuffer you should create to render into.
 foreign import ccall "getHMDRenderTargetSize" 
@@ -42,3 +55,31 @@ foreign import ccall "ovrHmd_EndFrame"
 
 foreign import ccall "free" 
     freeEyePoses :: OVRPose -> IO ()
+
+-- | Gets 
+foreign import ccall "getEyeProjection"
+    getEyeProjection_raw :: OVRFOVPort -> CFloat -> CFloat -> IO (Ptr Float)
+
+getEyeProjection :: OVRFOVPort -> Float -> Float -> IO (M44 Float)
+getEyeProjection fovPort zNear zFar = do
+    matrixPtr <- getEyeProjection_raw fovPort (realToFrac zNear) (realToFrac zFar)
+    m44FromList <$> peekArray 16 matrixPtr
+
+m44FromList :: [a] -> M44 a
+m44FromList [a,b,c,d
+            ,e,f,g,h
+            ,i,j,k,l
+            ,m,n,o,p] = V4 (V4 a b c d)
+                           (V4 e f g h)
+                           (V4 i j k l)
+                           (V4 m n o p)
+
+
+foreign import ccall "getPoses_OrientationAndPositionForEye"
+    getPoses_OrientationAndPositionForEye_raw :: OVRPose -> Int -> IO (Ptr Float)
+
+getPoses_OrientationAndPositionForEye pose eyeIndex = do
+    [oX, oY, oZ, oW, pX, pY, pZ] <- peekArray 7 =<< getPoses_OrientationAndPositionForEye_raw pose eyeIndex
+    let orientation = Quaternion oW (V3 oX oY oZ)
+        position    = V3 pX pY pZ
+    return (orientation, position)

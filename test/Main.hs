@@ -8,10 +8,7 @@ import Control.Monad.Trans
 import Foreign
 
 overPtr :: (MonadIO m, Storable a) => (Ptr a -> IO b) -> m a
-overPtr f =
-  liftIO (alloca (\p ->
-                    do _ <- f p
-                       peek p))
+overPtr f = liftIO (alloca (\p -> f p >> peek p))
 
 main :: IO ()
 main = do
@@ -22,7 +19,15 @@ main = do
     let (resX, resY) = (1920, 1080)
     win <- setupGLFW resX resY
 
-    eyeViewOffsets <- configureHMD hmd
+    eyeRenderDescs <- configureHMD hmd
+    eyeViewOffsets <- getEyeRenderDesc_HmdToEyeViewOffsets eyeRenderDescs
+    leftEyeFOV  <- getEyeRenderDesc_FOV eyeRenderDescs 0
+    rightEyeFOV <- getEyeRenderDesc_FOV eyeRenderDescs 1
+
+    leftEyeProjection  <- getEyeProjection leftEyeFOV  0.01 1000
+    rightEyeProjection <- getEyeProjection rightEyeFOV 0.01 1000
+    print leftEyeProjection
+    print rightEyeProjection
 
     [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize hmd
 
@@ -69,6 +74,11 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets = do
 
     -- Get the current orientation and position of the HMD
     eyePoses <- getEyePoses hmd eyeViewOffsets
+
+    leftPose  <- getPoses_OrientationAndPositionForEye eyePoses 0
+    rightPose <- getPoses_OrientationAndPositionForEye eyePoses 1
+    print leftPose
+    print rightPose
 
     -- Normally we'd render something here beyond just clearing the screen to a color
     glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)

@@ -9,8 +9,8 @@ ovrHmd createHMD() {
     return ovrHmd_CreateDebug(ovrHmd_DK2);
 }
 
-// Configures the HMD and returns the HmdToEyeViewOffsets for each eye
-const ovrVector3f *configureHMD(ovrHmd hmd) {
+// Configures the HMD and returns the ovrEyeRenderDescs for each eye
+const ovrEyeRenderDesc *configureHMD(ovrHmd hmd) {
 
     // Enable all tracking capabilities of the headset
     ovrTrackingCaps trackingCaps = ovrTrackingCap_Orientation  
@@ -31,7 +31,7 @@ const ovrVector3f *configureHMD(ovrHmd hmd) {
                                      | ovrDistortionCap_Overdrive 
                                      | ovrDistortionCap_HqDistortion;
     
-    ovrEyeRenderDesc eyeRenderDescs[2];
+    ovrEyeRenderDesc *eyeRenderDescs = malloc(sizeof(ovrEyeRenderDesc) * 2);
     int configResult = ovrHmd_ConfigureRendering(hmd, &cfg.Config, distortionCaps, hmd->MaxEyeFov, eyeRenderDescs);
     
     // Configure the HMD display
@@ -43,12 +43,23 @@ const ovrVector3f *configureHMD(ovrHmd hmd) {
     // Reset the pose
     ovrHmd_RecenterPose(hmd);
 
+    return eyeRenderDescs;
+}
+
+const ovrVector3f *getEyeRenderDesc_HmdToEyeViewOffsets(const ovrEyeRenderDesc eyeRenderDescs[2]) {
     // Grab the eyeViewOffsets needed for configure the camera and passing to ovr_EndFrame
     ovrVector3f *eyeViewOffsets = malloc(sizeof(ovrVector3f) * 2);
     eyeViewOffsets[0] = eyeRenderDescs[0].HmdToEyeViewOffset;
     eyeViewOffsets[1] = eyeRenderDescs[1].HmdToEyeViewOffset;
-
     return eyeViewOffsets;
+}
+
+const ovrFovPort *getEyeRenderDesc_FOV(const ovrEyeRenderDesc eyeRenderDescs[2], int eyeIndex) {
+
+    // Grab the eyeViewOffsets needed for configure the camera and passing to ovr_EndFrame
+    ovrFovPort *eyeFovPort = malloc(sizeof(ovrFovPort));
+    *eyeFovPort = eyeRenderDescs[eyeIndex].Fov;
+    return eyeFovPort;
 }
 
 const int *getHMDRenderTargetSize(ovrHmd hmd) {
@@ -66,7 +77,28 @@ const int *getHMDRenderTargetSize(ovrHmd hmd) {
     return renderTargetSize;
 }
 
+float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
+    ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_ClipRangeOpenGL);
+    float *matrix = malloc(sizeof(float) * 16);
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            matrix[i*4+j] = projection.M[i][j];
+        }
+    }
+    return matrix;
+}
 
+float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {
+    float *orientationAndPosition = malloc(sizeof(float) * 7);
+    orientationAndPosition[0] = eyePoses[eyeIndex].Orientation.x;
+    orientationAndPosition[1] = eyePoses[eyeIndex].Orientation.y;
+    orientationAndPosition[2] = eyePoses[eyeIndex].Orientation.z;
+    orientationAndPosition[3] = eyePoses[eyeIndex].Orientation.w;
+    orientationAndPosition[4] = eyePoses[eyeIndex].Position.x;
+    orientationAndPosition[5] = eyePoses[eyeIndex].Position.y;
+    orientationAndPosition[6] = eyePoses[eyeIndex].Position.z;
+    return orientationAndPosition;
+}
 
 // Bundle up the eye texture and its measurements into configuration structs to pass to OVR API
 const ovrTexture *createOVRTextureArray(GLuint eyeTexture, int width, int height) {

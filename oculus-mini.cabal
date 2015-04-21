@@ -20,7 +20,7 @@ library
   exposed-modules:     Graphics.Oculus
   -- other-modules:       
   other-extensions:    ForeignFunctionInterface
-  build-depends:       base >=4.8 && <4.9
+  build-depends:       base >=4.8 && <4.9, linear
   hs-source-dirs:      src
   c-sources:           cbits/oculus.c
   include-dirs:        include

@@ -38,4 +38,19 @@ test-suite test
     oculus-mini,
     gl,
     GLFW-b,
-    mtl
+    mtl,
+    bytestring, text, linear, time
+
+test-suite cube
+  main-is:             TestCube.hs
+  hs-source-dirs:      test
+  type:                exitcode-stdio-1.0
+  default-language:    Haskell2010
+  ghc-options:         -O2 -Wall -threaded -rtsopts
+  build-depends:
+    base,
+    oculus-mini,
+    gl,
+    GLFW-b,
+    mtl,
+    bytestring, text, linear, time

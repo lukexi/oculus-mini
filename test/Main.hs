@@ -4,11 +4,19 @@ import Graphics.GL
 import Graphics.Oculus
 import Data.Bits
 import Control.Monad
-import Control.Monad.Trans
 import Foreign
+import Linear
+import Data.Foldable
 
-overPtr :: (MonadIO m, Storable a) => (Ptr a -> IO b) -> m a
-overPtr f = liftIO (alloca (\p -> f p >> peek p))
+import Cube
+import Data.Time
+
+
+
+data Eye = Eye { eyeIndex      :: Int
+               , eyeProjection :: M44 GLfloat 
+               , eyeViewport   :: (GLint, GLint, GLsizei, GLsizei)
+               }
 
 main :: IO ()
 main = do
@@ -19,6 +27,7 @@ main = do
     let (resX, resY) = (1920, 1080)
     win <- setupGLFW resX resY
 
+    -- Oculus setup
     eyeRenderDescs <- configureHMD hmd
     eyeViewOffsets <- getEyeRenderDesc_HmdToEyeViewOffsets eyeRenderDescs
     leftEyeFOV  <- getEyeRenderDesc_FOV eyeRenderDescs 0
@@ -26,8 +35,6 @@ main = do
 
     leftEyeProjection  <- getEyeProjection leftEyeFOV  0.01 1000
     rightEyeProjection <- getEyeProjection rightEyeFOV 0.01 1000
-    print leftEyeProjection
-    print rightEyeProjection
 
     [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize hmd
 
@@ -35,9 +42,30 @@ main = do
 
     ovrTextureArray <- createOVRTextureArray (FramebufferTextureID (fromIntegral frameBufferTexture)) renderTargetSizeW renderTargetSizeH
     
-    glClearColor 0 1 1 1
 
-    _ <- forever $ mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets
+    -- Scene rendering setup
+    shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"
+    cubeVAO <- makeCube shader
+
+    glClearColor 0 0.1 0.1 1
+    glEnable GL_DEPTH_TEST
+
+    let eyes = [ Eye { eyeIndex = 0
+                     , eyeProjection = (fmap . fmap) realToFrac leftEyeProjection
+                     , eyeViewport = 
+                        (0, 0,
+                         fromIntegral renderTargetSizeW `div` 2, fromIntegral renderTargetSizeH)
+                    }
+               , Eye { eyeIndex = 1
+                     , eyeProjection = (fmap . fmap) realToFrac rightEyeProjection
+                     , eyeViewport = 
+                        (fromIntegral renderTargetSizeW `div` 2, 0,
+                         fromIntegral renderTargetSizeW `div` 2, fromIntegral renderTargetSizeH)
+                    }
+               ]
+
+    _ <- forever $ 
+        mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets eyes shader cubeVAO
     return ()
 
 setupGLFW :: Int -> Int -> IO GLFW.Window
@@ -51,7 +79,7 @@ setupGLFW desiredW desiredH = do
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 2
 
     let (halfW, halfH) = (desiredW `div` 2, desiredH `div` 2)
-    Just win <- GLFW.createWindow desiredW desiredH "CrashTest" Nothing Nothing
+    Just win <- GLFW.createWindow desiredW desiredH "Oculus Mini" Nothing Nothing
     (frameW, frameH) <- GLFW.getFramebufferSize win
     -- Compensate for retina framebuffers on Mac
     when (frameW > desiredW && frameH > desiredH) $ GLFW.setWindowSize win halfW halfH
@@ -61,8 +89,11 @@ setupGLFW desiredW desiredH = do
     GLFW.swapInterval 1
     return win
 
-mainLoop :: GLFW.Window -> HMD -> GLuint -> OVRTexture -> HMDToEyeViewOffset -> IO ()
-mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets = do
+mainLoop :: GLFW.Window -> HMD -> GLuint -> OVRTexture -> HMDToEyeViewOffset 
+         -> [Eye]
+         -> GLProgram -> VertexArrayObject -> IO ()
+mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cubeVAO = do
+    glGetErrors
     -- Get mouse/keyboard/OS events from GLFW
     GLFW.pollEvents
 
@@ -75,13 +106,34 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets = do
     -- Get the current orientation and position of the HMD
     eyePoses <- getEyePoses hmd eyeViewOffsets
 
-    leftPose  <- getPoses_OrientationAndPositionForEye eyePoses 0
-    rightPose <- getPoses_OrientationAndPositionForEye eyePoses 1
-    print leftPose
-    print rightPose
+    -- Clear the framebuffer
+    glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
 
     -- Normally we'd render something here beyond just clearing the screen to a color
-    glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
+    glUseProgram (fromIntegral (unGLProgram shader))
+    uniform_mvp <- getShaderUniform shader "mvp"
+
+
+    time <- realToFrac . utctDayTime <$> getCurrentTime
+    let zoom = (* 8) . (subtract 1.2) . sin $ time
+        rot  = axisAngle (V3 0 1 0) time
+
+    forM_ eyes $ \eye -> do
+
+        (eyeOrientation, eyePosition) <- getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
+        let eyeTransform = mkTransformation eyeOrientation eyePosition
+            projection   = eyeProjection eye
+            model        = mkTransformation rot (V3 0 0 zoom)
+            view         = lookAt (V3 0 2 0) (V3 0 0 zoom) (V3 0 1 0)
+            mvp          = projection !*! eyeTransform !*! view !*! model
+            (x,y,w,h)    = eyeViewport eye
+        glViewport x y w h
+
+        withArray (concatMap toList (transpose mvp)) $ \mvpPointer ->
+            glUniformMatrix4fv (fromIntegral (unUniformLocation uniform_mvp)) 1 GL_FALSE mvpPointer
+        glBindVertexArray (unVertexArrayObject cubeVAO)
+        glDrawElements GL_TRIANGLES 36 GL_UNSIGNED_INT nullPtr
+        glBindVertexArray 0
     
     -- Unbind the eye texture
     glBindFramebuffer GL_FRAMEBUFFER 0

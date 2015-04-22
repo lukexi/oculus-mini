@@ -56,7 +56,7 @@ foreign import ccall "ovrHmd_EndFrame"
 foreign import ccall "free" 
     freeEyePoses :: OVRPose -> IO ()
 
--- | Gets 
+-- | Gets a projection matrix from ovrMatrix4f_Projection in the from of a row-major array of floats
 foreign import ccall "getEyeProjection"
     getEyeProjection_raw :: OVRFOVPort -> CFloat -> CFloat -> IO (Ptr Float)
 

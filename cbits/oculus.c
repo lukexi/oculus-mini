@@ -78,7 +78,7 @@ const int *getHMDRenderTargetSize(ovrHmd hmd) {
 }
 
 float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
-    ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_ClipRangeOpenGL);
+    ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_RightHanded);
     float *matrix = malloc(sizeof(float) * 16);
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {

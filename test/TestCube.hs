@@ -14,7 +14,6 @@ import Cube
 
 
 
-
 main :: IO a
 main = do
 

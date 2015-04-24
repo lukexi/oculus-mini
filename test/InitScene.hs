@@ -14,12 +14,15 @@ setupGLFW desiredW desiredH = do
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMajor 3
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 2
 
-    let (halfW, halfH) = (desiredW `div` 2, desiredH `div` 2)
+    
     Just win <- GLFW.createWindow desiredW desiredH "Cube" Nothing Nothing
-    (frameW, frameH) <- GLFW.getFramebufferSize win
-    -- Compensate for retina framebuffers on Mac
-    when (frameW > desiredW && frameH > desiredH) $ GLFW.setWindowSize win halfW halfH
+    
 
+    -- Compensate for retina framebuffers on Mac
+    (frameW, frameH) <- GLFW.getFramebufferSize win
+    when (frameW > desiredW && frameH > desiredH) $
+        GLFW.setWindowSize win (desiredW `div` 2) (desiredH `div` 2)
+    
     GLFW.makeContextCurrent (Just win)
 
     GLFW.swapInterval 1

@@ -3,43 +3,41 @@ import Graphics.GL
 
 import Data.Bits
 import Control.Monad
-import Foreign
 import Linear
-import Data.Foldable
 
 import ShaderLoader
 import InitScene
 
-import Cube
+import qualified Cube as Cube
 
-
+-------------------------------------------------------------
+-- A test to make sure our rendering works without the Oculus
+-------------------------------------------------------------
 
 main :: IO a
 main = do
 
-    -- Should extract this from the HMD
-    let resX  =  1920
-        resY  =  1080
+    let (resX, resY) = (1920, 1080)
 
     win <- setupGLFW resX resY
 
     -- Scene rendering setup
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"
     
-    cubeVAO <- makeCube shader
+    cube <- Cube.makeCube shader
 
     glClearColor 0 0.1 0.1 1
     glEnable GL_DEPTH_TEST
 
     forever $ 
-        mainLoop win shader cubeVAO
+        mainLoop win shader cube
 
 
-mainLoop :: GLFW.Window -> GLProgram -> VertexArrayObject -> IO ()
+mainLoop :: GLFW.Window -> GLProgram -> Cube.Cube -> IO ()
 
-mainLoop win shader cubeVAO = do
+mainLoop win shader cube = do
 
-    glGetErrors
+    -- glGetErrors
 
     -- Get mouse/keyboard/OS events from GLFW
     GLFW.pollEvents
@@ -48,9 +46,7 @@ mainLoop win shader cubeVAO = do
     glClear ( GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT )
 
     -- Normally we'd render something here beyond just clearing the screen to a color
-    glUseProgram ( fromIntegral ( unGLProgram shader ) )
-
-    uniformMVP <- getShaderUniform shader "mvp"
+    glUseProgram (fromIntegral (unGLProgram shader))
 
     let projection = perspective 45 (1920/1080) 0.01 1000
         model      = mkTransformation 1 (V3 0 0 (-4))
@@ -60,16 +56,7 @@ mainLoop win shader cubeVAO = do
 
     glViewport x y w h
 
-    withArray ( concatMap toList ( transpose mvp ) ) $ 
-
-            glUniformMatrix4fv ( fromIntegral ( unUniformLocation uniformMVP ) ) 1 GL_FALSE
-
-
-    glBindVertexArray ( unVertexArrayObject cubeVAO )
-
-    glDrawElements GL_TRIANGLES 36 GL_UNSIGNED_INT nullPtr
-
-    glBindVertexArray 0
+    Cube.renderCube cube mvp
     
     GLFW.swapBuffers win
 

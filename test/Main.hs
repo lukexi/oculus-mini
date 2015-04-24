@@ -6,7 +6,6 @@ import Data.Bits
 import Control.Monad
 import Foreign
 import Linear
-import Data.Foldable
 
 import Cube
 import ShaderLoader
@@ -20,38 +19,45 @@ data Eye = Eye { eyeIndex      :: Int
                , eyeViewport   :: (GLint, GLint, GLsizei, GLsizei)
                }
 
-main :: IO ()
+main :: IO a
 main = do
-
+    -- Initialize the HMD
     hmd <- createHMD
 
-    -- Should extract this from the HMD
+    -- (should extract this from the HMD)
     let (resX, resY) = (1920, 1080)
+
+    -- Create our window
     win <- setupGLFW resX resY
 
-    -- Oculus setup
+    -- Configure the HMD with sane defaults
     eyeRenderDescs <- configureHMD hmd
     eyeViewOffsets <- getEyeRenderDesc_HmdToEyeViewOffsets eyeRenderDescs
-    leftEyeFOV  <- getEyeRenderDesc_FOV eyeRenderDescs 0
-    rightEyeFOV <- getEyeRenderDesc_FOV eyeRenderDescs 1
+    
+    leftEyeFOV     <- getEyeRenderDesc_FOV eyeRenderDescs 0
+    rightEyeFOV    <- getEyeRenderDesc_FOV eyeRenderDescs 1
 
+    -- Get the perspective projection matrix for each eye
     leftEyeProjection  <- getEyeProjection leftEyeFOV  0.01 1000
     rightEyeProjection <- getEyeProjection rightEyeFOV 0.01 1000
 
+    -- Find out how large our renderbuffer should be
     [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize hmd
 
+    -- Create a framebuffer that we'll render into and pass to the Oculus SDK
     (frameBuffer, frameBufferTexture) <- createFrameBuffer (fromIntegral renderTargetSizeW) (fromIntegral renderTargetSizeH)
 
+    -- Create the descriptors to tell the Oculus SDK about our framebuffer
     ovrTextureArray <- createOVRTextureArray (FramebufferTextureID (fromIntegral frameBufferTexture)) renderTargetSizeW renderTargetSizeH
-    
 
-    -- Scene rendering setup
+    -- Load the shaders and geometry for our scene
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"
-    cubeVAO <- makeCube shader
+    cube   <- makeCube shader
 
     glClearColor 0 0.1 0.1 1
     glEnable GL_DEPTH_TEST
 
+    -- Package up descriptions of each eye's perspective projection and render viewport
     let eyes = [ Eye { eyeIndex = 0
                      , eyeProjection = (fmap . fmap) realToFrac leftEyeProjection
                      , eyeViewport = 
@@ -66,15 +72,16 @@ main = do
                     }
                ]
 
-    _ <- forever $ 
-        mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets eyes shader cubeVAO
-    return ()
+    -- Begin our renderloop
+    forever $ 
+        mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets eyes shader cube
 
 mainLoop :: GLFW.Window -> HMD -> GLuint -> OVRTexture -> HMDToEyeViewOffset 
          -> [Eye]
-         -> GLProgram -> VertexArrayObject -> IO ()
-mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cubeVAO = do
-    glGetErrors
+         -> GLProgram -> Cube -> IO ()
+mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube = do
+    -- glGetErrors
+
     -- Get mouse/keyboard/OS events from GLFW
     GLFW.pollEvents
 
@@ -90,31 +97,39 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube
     -- Clear the framebuffer
     glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
 
-    -- Normally we'd render something here beyond just clearing the screen to a color
+    ------------------
+    -- Render our cube
+    ------------------
+
+    -- Use the cube's shader
     glUseProgram (fromIntegral (unGLProgram shader))
-    uniform_mvp <- getShaderUniform shader "mvp"
 
-
+    -- Vary the zoom and rotation of the cube based on time
     time <- realToFrac . utctDayTime <$> getCurrentTime
     let zoom = (* 8) . (subtract 1.2) . sin $ time
         rot  = axisAngle (V3 0 1 0) time
 
+    -- For each eye...
     forM_ eyes $ \eye -> do
 
+        -- Get its orientation and position
         (eyeOrientation, eyePosition) <- getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
+
+            -- Convert the eye pose into a transformation matrix
         let eyeTransform = mkTransformation eyeOrientation eyePosition
+            -- Get the perspective transform for this eye
             projection   = eyeProjection eye
+            -- Rotate and zoom the cube
             model        = mkTransformation rot (V3 0 0 zoom)
+            -- Look at the cube's position
             view         = lookAt (V3 0 2 0) (V3 0 0 zoom) (V3 0 1 0)
+            -- Create the final model-view-project matrix
             mvp          = projection !*! eyeTransform !*! view !*! model
+            -- Get this eye's viewport to render into
             (x,y,w,h)    = eyeViewport eye
         glViewport x y w h
 
-        withArray (concatMap toList (transpose mvp)) $ \mvpPointer ->
-            glUniformMatrix4fv (fromIntegral (unUniformLocation uniform_mvp)) 1 GL_FALSE mvpPointer
-        glBindVertexArray (unVertexArrayObject cubeVAO)
-        glDrawElements GL_TRIANGLES 36 GL_UNSIGNED_INT nullPtr
-        glBindVertexArray 0
+        renderCube cube mvp
     
     -- Unbind the eye texture
     glBindFramebuffer GL_FRAMEBUFFER 0
@@ -122,8 +137,10 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube
     -- Tell OVR API that we've finished our frame, passing the eyePoses and render texture so it can
     -- distort, timewarp, and blit to the screen.
     ovrHmd_EndFrame hmd eyePoses frameBufferTexture
+    -- Free the eye poses we allocated
     freeEyePoses eyePoses
 
+-- | Create and configure the texture to use for our framebuffer
 createFrameBufferTexture :: GLsizei -> GLsizei -> IO GLuint
 createFrameBufferTexture sizeX sizeY = do
     texID <- overPtr (glGenTextures 1)
@@ -138,6 +155,7 @@ createFrameBufferTexture sizeX sizeY = do
     
     return texID
 
+-- | Create the framebuffer we'll render into and pass to the Oculus SDK
 createFrameBuffer :: GLsizei -> GLsizei -> IO (GLuint, GLuint)
 createFrameBuffer sizeX sizeY = do
     frameBufferTexture <- createFrameBufferTexture sizeX sizeY

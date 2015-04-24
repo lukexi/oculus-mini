@@ -7,6 +7,7 @@ import Linear
 
 import Foreign
 import Control.Monad
+import Data.Maybe
 
 overPtr :: (Storable a) => (Ptr a -> IO b) -> IO a
 overPtr f = (alloca (\p -> f p >> peek p))
@@ -32,12 +33,14 @@ renderHMDEyes renderHMD eyePoses action = forM_ (renEyes renderHMD) $ \eye -> do
     -- Get its orientation and position
     (eyeOrientation, eyePosition) <- getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
 
-        -- Convert the eye pose into a transformation matrix
-    let eyeTransform = mkTransformation eyeOrientation eyePosition
+    let -- Convert the eye pose into a transformation matrix
+        eyeTransform  = mkTransformation eyeOrientation eyePosition
+        -- Invert eye transform to get correct head movement
+        eyeTransformI = fromMaybe eyeTransform (inv44 eyeTransform)
         -- Get the perspective transform for this eye
-        projection   = eyeProjection eye !*! eyeTransform
+        projection    = eyeProjection eye !*! eyeTransformI
         -- Get this eye's viewport to render into
-        (x,y,w,h)    = eyeViewport eye
+        (x,y,w,h)     = eyeViewport eye
     glViewport x y w h
 
     action projection

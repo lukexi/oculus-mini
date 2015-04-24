@@ -19,9 +19,8 @@ main :: IO a
 main = do
 
     hmd <- createHMD
-    let (resX, resY) = (1920, 1080)
-
-    win <- setupGLFW resX resY
+    (resX, resY) <- getHMDResolution hmd
+    _win <- setupGLFW resX resY
 
     renderHMD <- configureHMDRendering hmd
 

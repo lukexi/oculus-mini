@@ -1,12 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "oculus.h"
+
+#include "../include/OVR_CAPI_0_5_0.h"
+#include "../include/OVR_CAPI_GL.h"
+#include "../include/OVR_CAPI_Util.h"
 
 ovrHmd createHMD() {
     ovr_Initialize(0);
 
-    return ovrHmd_CreateDebug(ovrHmd_DK2);
+    ovrHmd hmd = ovrHmd_Create(0);
+    if (hmd == 0) {
+        hmd = ovrHmd_CreateDebug(ovrHmd_DK2);
+    }
+
+    return hmd;
 }
 
 // Configures the HMD and returns the ovrEyeRenderDescs for each eye
@@ -62,6 +70,13 @@ const ovrFovPort *getEyeRenderDesc_FOV(const ovrEyeRenderDesc eyeRenderDescs[2],
     return eyeFovPort;
 }
 
+const int *getHMDResolution(ovrHmd hmd) {
+    int *hmdResolution = malloc(sizeof(int) * 2);
+    hmdResolution[0] = hmd->Resolution.w;
+    hmdResolution[1] = hmd->Resolution.h;
+    return hmdResolution;
+}
+
 const int *getHMDRenderTargetSize(ovrHmd hmd) {
     // Find out how large the OVR recommends each eye texture should be
     ovrSizei recommenedTex0Size = ovrHmd_GetFovTextureSize(hmd, ovrEye_Left, hmd->DefaultEyeFov[ovrEye_Left], 1.0);
@@ -76,6 +91,8 @@ const int *getHMDRenderTargetSize(ovrHmd hmd) {
     renderTargetSize[1] = renderTargetSizeH;
     return renderTargetSize;
 }
+
+
 
 float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
     ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_RightHanded);

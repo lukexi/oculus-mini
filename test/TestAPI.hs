@@ -28,9 +28,8 @@ main = do
     -- Initialize the HMD
     hmd <- createHMD
 
-    -- (should extract this from the HMD)
-    let (resX, resY) = (1920, 1080)
-
+    (resX, resY) <- getHMDResolution hmd
+    
     -- Create our window
     win <- setupGLFW resX resY
 

@@ -18,9 +18,21 @@ newtype OVRFOVPort         = OVRFOVPort (Ptr OVRFOVPort)
 
 newtype FramebufferTextureID = FramebufferTextureID CUInt
 
+foreign import ccall "free" 
+    freePtr :: Ptr a -> IO ()
+
 -- | Initialize and create the HMD reference
 foreign import ccall "createHMD" 
     createHMD :: IO HMD
+
+foreign import ccall "getHMDResolution" 
+    getHMDResolution_raw :: HMD -> IO (Ptr CInt)
+getHMDResolution :: Num a => HMD -> IO (a, a)
+getHMDResolution hmd = do
+    resolutionPtr <- getHMDResolution_raw hmd
+    [resolutionW, resolutionH] <- peekArray 2 resolutionPtr
+    freePtr resolutionPtr
+    return (fromIntegral resolutionW, fromIntegral resolutionH)    
 
 -- | Configures the HMD with sane defaults, and returns the HMDToEyeViewOffsets needed for getEyePoses
 foreign import ccall "configureHMD" 
@@ -38,7 +50,9 @@ foreign import ccall "getHMDRenderTargetSize"
 
 getHMDRenderTargetSize :: HMD -> IO (CInt, CInt)
 getHMDRenderTargetSize hmd = do
-    [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize_raw hmd
+    renderTargetSizePtr <- getHMDRenderTargetSize_raw hmd
+    [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 renderTargetSizePtr
+    freePtr renderTargetSizePtr
     return (renderTargetSizeW, renderTargetSizeH)
 
 -- | Takes the framebuffer texture object and its dimensions, and creates a texture descriptor to pass to ovrHmd_EndFrame
@@ -57,9 +71,6 @@ foreign import ccall "getEyePoses"
 -- and blits what you rendered into the framebuffer to the Rift display.
 foreign import ccall "ovrHmd_EndFrame" 
     ovrHmd_EndFrame :: HMD -> OVRPose -> OVRTexture -> IO ()
-
-foreign import ccall "free" 
-    freePtr :: Ptr a -> IO ()
 
 -- | Gets a projection matrix from ovrMatrix4f_Projection in the from of a row-major array of floats
 foreign import ccall "getEyeProjection"

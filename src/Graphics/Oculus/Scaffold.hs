@@ -70,11 +70,12 @@ renderHMDFrame RenderHMD{..} action = do
 
     return result
 
--- | Configures the HMD and returns a struct of info needed to render frames to it
-configureHMDRendering :: HMD -> IO RenderHMD
-configureHMDRendering hmd = do
+-- | Given the HMD and your window's name (needed for Direct Mode on Windows)
+--  Configures the HMD and returns a struct of info needed to render frames to it
+configureHMDRendering :: HMD -> String -> IO RenderHMD
+configureHMDRendering hmd windowName = do
     -- Configure the HMD with sane defaults
-    eyeRenderDescs <- configureHMD hmd
+    eyeRenderDescs <- configureHMD hmd windowName
     eyeViewOffsets <- getEyeRenderDesc_HmdToEyeViewOffsets eyeRenderDescs
 
     -- Find out how large our renderbuffer should be

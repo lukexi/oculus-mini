@@ -18,7 +18,7 @@ main = do
 
     let (resX, resY) = (1920, 1080)
 
-    win <- setupGLFW resX resY
+    win <- setupGLFW "Cube" resX resY
 
     -- Scene rendering setup
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"

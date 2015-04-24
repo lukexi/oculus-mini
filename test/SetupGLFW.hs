@@ -4,8 +4,8 @@ import qualified Graphics.UI.GLFW as GLFW
 
 import Control.Monad
 
-setupGLFW :: Int -> Int -> IO GLFW.Window
-setupGLFW desiredW desiredH = do
+setupGLFW :: String -> Int -> Int -> IO GLFW.Window
+setupGLFW windowName desiredW desiredH = do
     _ <- GLFW.init
 
     GLFW.windowHint $ GLFW.WindowHint'ClientAPI GLFW.ClientAPI'OpenGL
@@ -15,7 +15,7 @@ setupGLFW desiredW desiredH = do
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 2
 
     
-    Just win <- GLFW.createWindow desiredW desiredH "Cube" Nothing Nothing
+    Just win <- GLFW.createWindow desiredW desiredH windowName Nothing Nothing
     
 
     -- Compensate for retina framebuffers on Mac

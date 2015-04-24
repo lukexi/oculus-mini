@@ -20,9 +20,9 @@ main = do
 
     hmd <- createHMD
     (resX, resY) <- getHMDResolution hmd
-    _win <- setupGLFW resX resY
+    _win <- setupGLFW "Scaffold" resX resY
 
-    renderHMD <- configureHMDRendering hmd
+    renderHMD <- configureHMDRendering hmd "Scaffold"
 
     -- Scene rendering setup
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"

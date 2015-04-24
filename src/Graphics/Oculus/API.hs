@@ -2,6 +2,7 @@
 module Graphics.Oculus.API where
 import Foreign
 import Foreign.C
+
 import Linear
 
 -- | Opaque newtypes for data we need to transport but not inspect
@@ -36,7 +37,10 @@ getHMDResolution hmd = do
 
 -- | Configures the HMD with sane defaults, and returns the HMDToEyeViewOffsets needed for getEyePoses
 foreign import ccall "configureHMD" 
-    configureHMD :: HMD -> IO OVREyeRenderDesc
+    configureHMD_raw :: HMD -> Ptr CChar -> IO OVREyeRenderDesc
+
+configureHMD :: HMD -> String -> IO OVREyeRenderDesc
+configureHMD hmd windowName = withCString windowName (configureHMD_raw hmd)
 
 foreign import ccall "getEyeRenderDesc_HmdToEyeViewOffsets" 
     getEyeRenderDesc_HmdToEyeViewOffsets :: OVREyeRenderDesc -> IO HMDToEyeViewOffset

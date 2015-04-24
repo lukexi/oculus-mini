@@ -6,6 +6,38 @@
 #include "../include/OVR_CAPI_GL.h"
 #include "../include/OVR_CAPI_Util.h"
 
+#ifdef _WIN32
+// On Windows, we need to grab a native window handle to use Direct Mode
+#include <windows.h>
+
+typedef struct {
+    HWND hWnd;
+    char WindowName[256];
+} cell;
+
+BOOL CALLBACK EnumWndProc(HWND hWnd, LPARAM lParam)
+{
+    char buff[256]="";
+    GetWindowText( hWnd,buff, sizeof(buff));
+    if(strcmp(buff,((cell*)lParam)->WindowName)==0){
+        ((cell*)lParam)->hWnd = hWnd;
+    }
+    return TRUE;
+}
+
+HWND getWindowHandle(char* wName)
+{
+    cell c;
+    c.hWnd =NULL;
+    strcpy(c.WindowName,wName);
+
+    EnumWindows( EnumWndProc, (LPARAM)&c);
+
+        return c.hWnd;
+}
+#endif
+
+
 ovrHmd createHMD() {
     ovr_Initialize(0);
 
@@ -18,8 +50,13 @@ ovrHmd createHMD() {
 }
 
 // Configures the HMD and returns the ovrEyeRenderDescs for each eye
-const ovrEyeRenderDesc *configureHMD(ovrHmd hmd) {
+const ovrEyeRenderDesc *configureHMD(ovrHmd hmd, char *windowName) {
 
+#ifdef _WIN32
+    HWND nativeWindowHandle = getWindowHandle(windowName);
+    ovrHmd_AttachToWindow(hmd, nativeWindowHandle, nullptr, nullptr);
+#endif
+    
     // Enable all tracking capabilities of the headset
     ovrTrackingCaps trackingCaps = ovrTrackingCap_Orientation  
                                  | ovrTrackingCap_MagYawCorrection

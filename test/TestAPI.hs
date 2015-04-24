@@ -31,10 +31,10 @@ main = do
     (resX, resY) <- getHMDResolution hmd
     
     -- Create our window
-    win <- setupGLFW resX resY
+    win <- setupGLFW "Raw API" resX resY
 
     -- Configure the HMD with sane defaults
-    eyeRenderDescs <- configureHMD hmd
+    eyeRenderDescs <- configureHMD hmd "Raw API"
     eyeViewOffsets <- getEyeRenderDesc_HmdToEyeViewOffsets eyeRenderDescs
     
     leftEyeFOV     <- getEyeRenderDesc_FOV eyeRenderDescs 0

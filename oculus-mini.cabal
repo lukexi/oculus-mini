@@ -17,18 +17,21 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Graphics.Oculus
-  -- other-modules:       
+  exposed-modules:     
+    Graphics.Oculus
+    Graphics.Oculus.API
+    Graphics.Oculus.Scaffold
+  -- other-modules:    .   
   other-extensions:    ForeignFunctionInterface
-  build-depends:       base >=4.8 && <4.9, linear
+  build-depends:       base >=4.8 && <4.9, linear, gl
   hs-source-dirs:      src
   c-sources:           cbits/oculus.c
   include-dirs:        include
   default-language:    Haskell2010
   frameworks:          LibOVRRT_0
 
-test-suite test
-  main-is:             Main.hs
+test-suite cube
+  main-is:             TestCube.hs
   hs-source-dirs:      test
   type:                exitcode-stdio-1.0
   default-language:    Haskell2010
@@ -41,8 +44,22 @@ test-suite test
     mtl,
     bytestring, text, linear, time
 
-test-suite cube
-  main-is:             TestCube.hs
+test-suite api
+  main-is:             TestAPI.hs
+  hs-source-dirs:      test
+  type:                exitcode-stdio-1.0
+  default-language:    Haskell2010
+  ghc-options:         -O2 -Wall -threaded -rtsopts
+  build-depends:
+    base,
+    oculus-mini,
+    gl,
+    GLFW-b,
+    mtl,
+    bytestring, text, linear, time
+
+test-suite scaffold
+  main-is:             TestScaffold.hs
   hs-source-dirs:      test
   type:                exitcode-stdio-1.0
   default-language:    Haskell2010

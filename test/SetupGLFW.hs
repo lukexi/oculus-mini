@@ -1,4 +1,4 @@
-module InitScene where
+module SetupGLFW where
 
 import qualified Graphics.UI.GLFW as GLFW
 

@@ -1,17 +1,21 @@
 
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GL
-import Graphics.Oculus
+import Graphics.Oculus.API
 import Data.Bits
 import Control.Monad
-import Foreign
 import Linear
-
-import Cube
-import ShaderLoader
-import InitScene
 import Data.Time
 
+import SetupGLFW
+import ShaderLoader
+import Cube
+
+-----------------------------------------------------
+-- A test of the raw Graphics.Oculus.API module.
+-- You can use Graphics.Oculus.Scaffold for an easier
+-- API based on this example.
+-----------------------------------------------------
 
 
 data Eye = Eye { eyeIndex      :: Int
@@ -42,7 +46,7 @@ main = do
     rightEyeProjection <- getEyeProjection rightEyeFOV 0.01 1000
 
     -- Find out how large our renderbuffer should be
-    [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 =<< getHMDRenderTargetSize hmd
+    (renderTargetSizeW, renderTargetSizeH) <- getHMDRenderTargetSize hmd
 
     -- Create a framebuffer that we'll render into and pass to the Oculus SDK
     (frameBuffer, frameBufferTexture) <- createFrameBuffer (fromIntegral renderTargetSizeW) (fromIntegral renderTargetSizeH)
@@ -138,7 +142,7 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube
     -- distort, timewarp, and blit to the screen.
     ovrHmd_EndFrame hmd eyePoses frameBufferTexture
     -- Free the eye poses we allocated
-    freeEyePoses eyePoses
+    freePtr (unOVRPose eyePoses)
 
 -- | Create and configure the texture to use for our framebuffer
 createFrameBufferTexture :: GLsizei -> GLsizei -> IO GLuint

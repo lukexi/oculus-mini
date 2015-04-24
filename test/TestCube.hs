@@ -5,10 +5,9 @@ import Data.Bits
 import Control.Monad
 import Linear
 
+import SetupGLFW
 import ShaderLoader
-import InitScene
-
-import qualified Cube as Cube
+import Cube
 
 -------------------------------------------------------------
 -- A test to make sure our rendering works without the Oculus
@@ -24,7 +23,7 @@ main = do
     -- Scene rendering setup
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"
     
-    cube <- Cube.makeCube shader
+    cube <- makeCube shader
 
     glClearColor 0 0.1 0.1 1
     glEnable GL_DEPTH_TEST
@@ -33,10 +32,8 @@ main = do
         mainLoop win shader cube
 
 
-mainLoop :: GLFW.Window -> GLProgram -> Cube.Cube -> IO ()
-
+mainLoop :: GLFW.Window -> GLProgram -> Cube -> IO ()
 mainLoop win shader cube = do
-
     -- glGetErrors
 
     -- Get mouse/keyboard/OS events from GLFW
@@ -56,17 +53,9 @@ mainLoop win shader cube = do
 
     glViewport x y w h
 
-    Cube.renderCube cube mvp
+    renderCube cube mvp
     
     GLFW.swapBuffers win
-
-
-
-
-
-
-
-
 
 
 

@@ -20,9 +20,9 @@ newtype VertexArrayObject = VertexArrayObject   { unVertexArrayObject   :: GLuin
 newtype AttributeLocation = AttributeLocation   { unAttributeLocation   :: GLint  }
 newtype UniformLocation   = UniformLocation     { unUniformLocation     :: GLint  }
 
----------------------------------------------------------
+---------------
 -- Load shaders
----------------------------------------------------------
+---------------
 
 createShaderProgram :: FilePath -> FilePath -> IO GLProgram
 

@@ -26,9 +26,14 @@ library
   build-depends:       base >=4.8 && <4.9, linear, gl
   hs-source-dirs:      src
   c-sources:           cbits/oculus.c
+  -- For windows gcc:
+  cc-options:          -std=c99
   include-dirs:        include
   default-language:    Haskell2010
   frameworks:          LibOVRRT_0
+  if os(windows)
+    extra-libraries:     OVRRT64_0_5
+    extra-lib-dirs:      C:\Windows\System32
 
 test-suite cube
   main-is:             TestCube.hs

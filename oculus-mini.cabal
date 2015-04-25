@@ -23,7 +23,7 @@ library
     Graphics.Oculus.Scaffold
   -- other-modules:    .   
   other-extensions:    ForeignFunctionInterface
-  build-depends:       base >=4.8 && <4.9, linear, gl
+  build-depends:       base >=4.8 && <4.9, linear, gl, mtl
   hs-source-dirs:      src
   c-sources:           cbits/oculus.c
   include-dirs:        include

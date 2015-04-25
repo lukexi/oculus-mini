@@ -7,6 +7,7 @@ import Linear
 
 import Foreign
 import Control.Monad
+import Control.Monad.Trans
 
 overPtr :: (Storable a) => (Ptr a -> IO b) -> IO a
 overPtr f = (alloca (\p -> f p >> peek p))
@@ -27,10 +28,10 @@ data RenderHMD = RenderHMD
     , renEyes                  :: [Eye]
     }
 
-renderHMDEyes :: RenderHMD -> OVRPose -> (M44 GLfloat -> IO b) -> IO ()
+renderHMDEyes :: MonadIO m => RenderHMD -> OVRPose -> (M44 GLfloat -> m b) -> m ()
 renderHMDEyes renderHMD eyePoses action = forM_ (renEyes renderHMD) $ \eye -> do
     -- Get its orientation and position
-    (eyeOrientation, eyePosition) <- getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
+    (eyeOrientation, eyePosition) <- liftIO $ getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
 
         -- Convert the eye pose into a transformation matrix
     let eyeTransform = mkTransformation eyeOrientation eyePosition
@@ -45,16 +46,16 @@ renderHMDEyes renderHMD eyePoses action = forM_ (renEyes renderHMD) $ \eye -> do
 -- | Call with an action to render a single frame to the HMD.
 -- You'll be passed an OVRPose that you can then pass to renderHMDEyes to 
 -- render to each eye after you've done any initial setup.
-renderHMDFrame :: RenderHMD -> (OVRPose -> IO a) -> IO a
+renderHMDFrame :: MonadIO m => RenderHMD -> (OVRPose -> m a) -> m a
 renderHMDFrame RenderHMD{..} action = do
     -- Tell OVR API we're about to render a frame
-    beginFrame renHMD
+    liftIO $ beginFrame renHMD
 
     -- Bind the eye texture as the frame buffer to render into
     glBindFramebuffer GL_FRAMEBUFFER renFrameBuffer
 
     -- Get the current orientation and position of the HMD
-    eyePoses <- getEyePoses renHMD renEyeViewOffsets
+    eyePoses <- liftIO $ getEyePoses renHMD renEyeViewOffsets
 
     -- Call the render action with the eyePoses, which should then call renderHMDEyes
     result <- action eyePoses
@@ -64,9 +65,9 @@ renderHMDFrame RenderHMD{..} action = do
 
     -- Tell OVR API that we've finished our frame, passing the eyePoses and render texture so it can
     -- distort, timewarp, and blit to the screen.
-    ovrHmd_EndFrame renHMD eyePoses renFrameBufferDescriptor
+    liftIO $ ovrHmd_EndFrame renHMD eyePoses renFrameBufferDescriptor
     -- Free the eye poses we allocated
-    freePtr (unOVRPose eyePoses)
+    liftIO $ freePtr (unOVRPose eyePoses)
 
     return result
 

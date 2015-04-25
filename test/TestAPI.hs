@@ -6,6 +6,7 @@ import Data.Bits
 import Control.Monad
 import Linear
 import Data.Time
+import Data.Maybe
 
 import SetupGLFW
 import ShaderLoader
@@ -118,8 +119,11 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube
         -- Get its orientation and position
         (eyeOrientation, eyePosition) <- getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
 
-            -- Convert the eye pose into a transformation matrix
-        let eyeTransform = mkTransformation eyeOrientation eyePosition
+            
+        let -- Convert the eye pose into a transformation matrix
+            eyeTransform =  mkTransformation eyeOrientation eyePosition
+            -- Invert eye transform to get correct head movement
+            eyeTransformI = fromMaybe eyeTransform (inv44 eyeTransform)
             -- Get the perspective transform for this eye
             projection   = eyeProjection eye
             -- Rotate and zoom the cube
@@ -127,7 +131,7 @@ mainLoop _win hmd frameBuffer frameBufferTexture eyeViewOffsets eyes shader cube
             -- Look at the cube's position
             view         = lookAt (V3 0 2 0) (V3 0 0 zoom) (V3 0 1 0)
             -- Create the final model-view-project matrix
-            mvp          = projection !*! eyeTransform !*! view !*! model
+            mvp          = projection !*! eyeTransformI !*! view !*! model
             -- Get this eye's viewport to render into
             (x,y,w,h)    = eyeViewport eye
         glViewport x y w h

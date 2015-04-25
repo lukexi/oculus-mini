@@ -54,7 +54,7 @@ const ovrEyeRenderDesc *configureHMD(ovrHmd hmd, char *windowName) {
 
 #ifdef _WIN32
     HWND nativeWindowHandle = getWindowHandle(windowName);
-    ovrHmd_AttachToWindow(hmd, nativeWindowHandle, nullptr, nullptr);
+    ovrHmd_AttachToWindow(hmd, nativeWindowHandle, 0, 0);
 #endif
     
     // Enable all tracking capabilities of the headset

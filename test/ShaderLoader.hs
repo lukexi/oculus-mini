@@ -19,6 +19,7 @@ newtype GLProgram         = GLProgram           { unGLProgram           :: GLuin
 newtype VertexArrayObject = VertexArrayObject   { unVertexArrayObject   :: GLuint }
 newtype AttributeLocation = AttributeLocation   { unAttributeLocation   :: GLint  }
 newtype UniformLocation   = UniformLocation     { unUniformLocation     :: GLint  }
+newtype TextureID         = TextureID           { unTextureID           :: GLuint }
 
 ---------------
 -- Load shaders
@@ -56,7 +57,17 @@ createShaderProgram vertexShaderPath fragmentShaderPath =
                     withArray [ptr]
                               (\srcs ->
                                  glShaderSource shader 1 srcs nullPtr))
-               glCompileShader shader -- GL.get (GL.shaderInfoLog shader) >>= putStrLn
+               glCompileShader shader
+               when True
+                    (do maxLength <- overPtr (glGetShaderiv shader GL_INFO_LOG_LENGTH)
+                        logLines <- allocaArray
+                                      (fromIntegral maxLength)
+                                      (\p ->
+                                         alloca (\lenP ->
+                                                   do glGetShaderInfoLog shader maxLength lenP p
+                                                      len <- peek lenP
+                                                      peekCStringLen (p,fromIntegral len)))
+                        putStrLn logLines)
 
 
 getShaderAttribute :: GLProgram -> String -> IO AttributeLocation

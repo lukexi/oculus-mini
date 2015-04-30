@@ -11,9 +11,9 @@ import SetupGLFW
 import ShaderLoader
 import Cube
 
--------------------------------------------------------------
--- A test to make sure our rendering works without the Oculus
--------------------------------------------------------------
+--------------------------------------
+-- A test of the simple "Scaffold" API
+--------------------------------------
 
 main :: IO a
 main = do

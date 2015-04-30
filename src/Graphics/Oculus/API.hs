@@ -80,6 +80,14 @@ foreign import ccall "ovrHmd_EndFrame"
 foreign import ccall "getEyeProjection"
     getEyeProjection_raw :: OVRFOVPort -> CFloat -> CFloat -> IO (Ptr Float)
 
+
+
+foreign import ccall "ovrHmd_DismissHSWDisplay" 
+    dismissHSWDisplay :: HMD -> IO ()
+
+foreign import ccall "ovrHmd_RecenterPose"
+    recenterPose :: HMD -> IO ()
+
 getEyeProjection :: OVRFOVPort -> Float -> Float -> IO (M44 Float)
 getEyeProjection fovPort zNear zFar = do
     matrixPtr <- getEyeProjection_raw fovPort (realToFrac zNear) (realToFrac zFar)

@@ -77,6 +77,8 @@ main = do
                ]
 
     -- Begin our renderloop
+    dismissHSWDisplay hmd
+    recenterPose hmd
     forever $ 
         mainLoop win hmd frameBuffer ovrTextureArray eyeViewOffsets eyes shader cube
 

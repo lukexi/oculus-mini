@@ -24,6 +24,9 @@ main = do
 
     renderHMD <- configureHMDRendering hmd "Scaffold"
 
+    dismissHSWDisplay hmd
+    recenterPose hmd
+
     -- Scene rendering setup
     shader <- createShaderProgram "test/cube.v.glsl" "test/cube.f.glsl"
     

@@ -36,10 +36,10 @@ renderCube cube mvp = do
 makeCube :: GLProgram -> IO Cube
 makeCube program = do
 
-    aPosition      <- getShaderAttribute program "aPosition"
-    aColor         <- getShaderAttribute program "aColor"
-    aID            <- getShaderAttribute program "aID"
-    uMVP           <- getShaderUniform   program "mvp"
+    aVertex <- getShaderAttribute program "aVertex"
+    aColor  <- getShaderAttribute program "aColor"
+    aID     <- getShaderAttribute program "aID"
+    uMVP    <- getShaderUniform   program "uMVP"
 
     -- Setup a VAO
     vaoCube <- overPtr (glGenVertexArrays 1)
@@ -80,10 +80,10 @@ makeCube program = do
             glBufferData GL_ARRAY_BUFFER cubeVerticesSize (castPtr cubeVerticesPtr) GL_STATIC_DRAW 
 
     -- Describe our vertices array to OpenGL
-    glEnableVertexAttribArray (fromIntegral (unAttributeLocation aPosition))
+    glEnableVertexAttribArray (fromIntegral (unAttributeLocation aVertex))
 
     glVertexAttribPointer
-        (fromIntegral (unAttributeLocation aPosition)) -- attribute
+        (fromIntegral (unAttributeLocation aVertex)) -- attribute
         3                 -- number of elements per vertex, here (x,y,z)
         GL_FLOAT          -- the type of each element
         GL_FALSE          -- don't normalize

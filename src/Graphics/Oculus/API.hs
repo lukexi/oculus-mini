@@ -81,19 +81,24 @@ foreign import ccall "getEyeProjection"
     getEyeProjection_raw :: OVRFOVPort -> CFloat -> CFloat -> IO (Ptr Float)
 
 
-
-foreign import ccall "ovrHmd_DismissHSWDisplay" 
-    dismissHSWDisplay :: HMD -> IO ()
-
-foreign import ccall "ovrHmd_RecenterPose"
-    recenterPose :: HMD -> IO ()
-
 getEyeProjection :: OVRFOVPort -> Float -> Float -> IO (M44 Float)
 getEyeProjection fovPort zNear zFar = do
-    matrixPtr <- getEyeProjection_raw fovPort (realToFrac zNear) (realToFrac zFar)
+    m44FromFlatMatrixPtr =<< getEyeProjection_raw fovPort (realToFrac zNear) (realToFrac zFar)
+
+foreign import ccall "getOrthoSubProjection"
+    getOrthoSubProjection_raw :: OVREyeRenderDesc -> CFloat -> CFloat -> HMDToEyeViewOffset -> CInt -> IO (Ptr Float)
+getOrthoSubProjection :: OVREyeRenderDesc -> Float -> Float -> HMDToEyeViewOffset -> Int -> IO (M44 Float)
+getOrthoSubProjection eyeRenderDescs zNear zFar hmdToEyeViewOffsets eyeIndex = do
+    m44FromFlatMatrixPtr =<< getOrthoSubProjection_raw 
+        eyeRenderDescs (realToFrac zNear) (realToFrac zFar) 
+        hmdToEyeViewOffsets (fromIntegral eyeIndex)
+
+m44FromFlatMatrixPtr :: Storable a => Ptr a -> IO (M44 a)
+m44FromFlatMatrixPtr matrixPtr = do
     matrix <- m44FromList <$> peekArray 16 matrixPtr
     freePtr matrixPtr
     return matrix
+
 
 m44FromList :: [a] -> M44 a
 m44FromList [a,b,c,d
@@ -103,6 +108,7 @@ m44FromList [a,b,c,d
                            (V4 e f g h)
                            (V4 i j k l)
                            (V4 m n o p)
+m44FromList _ = error "Invalid list length for m44FromList"
 
 
 foreign import ccall "getPoses_OrientationAndPositionForEye"
@@ -116,3 +122,11 @@ getPoses_OrientationAndPositionForEye pose eyeIndex = do
     let orientation = Quaternion oW (V3 oX oY oZ)
         position    = V3 pX pY pZ
     return (orientation, position)
+
+
+
+foreign import ccall "ovrHmd_DismissHSWDisplay" 
+    dismissHSWDisplay :: HMD -> IO ()
+
+foreign import ccall "ovrHmd_RecenterPose"
+    recenterPose :: HMD -> IO ()

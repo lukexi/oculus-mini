@@ -1,5 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
-module Graphics.Oculus.Scaffold (RenderHMD, configureHMDRendering, renderHMDFrame, renderHMDEyes) where
+module Graphics.Oculus.Scaffold (
+    RenderHMD(..), Eye(..), 
+    configureHMDRendering, 
+    renderHMDFrame, 
+    renderHMDEyes) where
 
 import Graphics.Oculus.API
 import Graphics.GL
@@ -24,6 +28,7 @@ data Eye = Eye
 data RenderHMD = RenderHMD 
     { renHMD                   :: HMD
     , renEyeViewOffsets        :: HMDToEyeViewOffset 
+    , renEyeRenderDescs        :: OVREyeRenderDesc
     , renFrameBuffer           :: GLuint
     , renFrameBufferDescriptor :: OVRTexture
     , renEyes                  :: [Eye]
@@ -95,6 +100,7 @@ configureHMDRendering hmd windowName = do
 
     return RenderHMD 
         { renHMD                   = hmd
+        , renEyeRenderDescs        = eyeRenderDescs
         , renEyeViewOffsets        = eyeViewOffsets 
         , renFrameBuffer           = frameBuffer
         , renFrameBufferDescriptor = frameBufferDescriptor

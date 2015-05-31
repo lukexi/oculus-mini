@@ -129,17 +129,30 @@ const int *getHMDRenderTargetSize(ovrHmd hmd) {
     return renderTargetSize;
 }
 
-
-
-float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
-    ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_RightHanded);
+float *newFlatMatrixFromOvrMatrix4f(ovrMatrix4f ovrMatrix) {
     float *matrix = malloc(sizeof(float) * 16);
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
-            matrix[i*4+j] = projection.M[i][j];
+            matrix[i*4+j] = ovrMatrix.M[i][j];
         }
     }
     return matrix;
+}
+
+float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
+    ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_RightHanded);
+    return newFlatMatrixFromOvrMatrix4f(projection);
+}
+
+
+float *getOrthoSubProjection(const ovrEyeRenderDesc eyeRenderDescs[2], float znear, float zfar, const ovrVector3f hmdToEyeViewOffset[2], int eyeIndex) {
+    ovrFovPort fov = eyeRenderDescs[eyeIndex].Fov;
+    float hmdToEyeViewOffsetX = hmdToEyeViewOffset[eyeIndex].x;
+    ovrVector2f scale = {1.0,1.0};
+    float distance = 1;
+    ovrMatrix4f projection = ovrMatrix4f_Projection(fov, znear, zfar, ovrProjection_RightHanded);
+    ovrMatrix4f orthoProj = ovrMatrix4f_OrthoSubProjection(projection, scale, distance, hmdToEyeViewOffsetX);
+    return newFlatMatrixFromOvrMatrix4f(orthoProj);
 }
 
 float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {

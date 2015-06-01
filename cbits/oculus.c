@@ -167,6 +167,15 @@ float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIn
     return orientationAndPosition;
 }
 
+float *getFOVPort(const ovrFovPort fovPort) {
+    float *fovPortVals = malloc(sizeof(float) * 4);
+    fovPortVals[0] = fovPort.UpTan;
+    fovPortVals[1] = fovPort.DownTan;
+    fovPortVals[2] = fovPort.LeftTan;
+    fovPortVals[3] = fovPort.RightTan;
+    return fovPortVals;
+}
+
 // Bundle up the eye texture and its measurements into configuration structs to pass to OVR API
 const ovrTexture *createOVRTextureArray(GLuint eyeTexture, int width, int height) {
 

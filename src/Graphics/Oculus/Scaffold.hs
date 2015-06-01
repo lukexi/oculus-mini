@@ -10,6 +10,7 @@ import Graphics.GL
 import Linear
 
 import Foreign
+import Foreign.C.String
 import Control.Monad
 import Control.Monad.Trans
 import Data.Maybe
@@ -20,6 +21,7 @@ overPtr f = (alloca (\p -> f p >> peek p))
 -- | A description of one eye
 data Eye = Eye 
     { eyeIndex      :: Int
+    , eyeFOV        :: FOVPort
     , eyeProjection :: M44 GLfloat 
     , eyeViewport   :: (GLint, GLint, GLsizei, GLsizei)
     }
@@ -119,13 +121,18 @@ makeEyes eyeRenderDescs renderTargetSizeW renderTargetSizeH = do
     leftEyeProjection  <- getEyeProjection leftEyeFOV  0.01 1000
     rightEyeProjection <- getEyeProjection rightEyeFOV 0.01 1000
 
+    leftEyeFOVPort  <- fovPortFromOVRFOVPort leftEyeFOV
+    rightEyeFOVPort <- fovPortFromOVRFOVPort rightEyeFOV
+
     return  [ Eye { eyeIndex = 0
+                  , eyeFOV = leftEyeFOVPort
                   , eyeProjection = (fmap . fmap) realToFrac leftEyeProjection
                   , eyeViewport = 
                         (0, 0,
                          fromIntegral renderTargetSizeW `div` 2, fromIntegral renderTargetSizeH)
                     }
             , Eye { eyeIndex = 1
+                  , eyeFOV = rightEyeFOVPort
                   , eyeProjection = (fmap . fmap) realToFrac rightEyeProjection
                   , eyeViewport = 
                         (fromIntegral renderTargetSizeW `div` 2, 0,

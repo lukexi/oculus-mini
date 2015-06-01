@@ -19,6 +19,13 @@ newtype OVRFOVPort         = OVRFOVPort (Ptr OVRFOVPort)
 
 newtype FramebufferTextureID = FramebufferTextureID CUInt
 
+data FOVPort = FOVPort
+        { fovpUpTan    :: Float
+        , fovpDownTan  :: Float
+        , fovpLeftTan  :: Float
+        , fovpRightTan :: Float
+        }
+
 foreign import ccall "free" 
     freePtr :: Ptr a -> IO ()
 
@@ -30,9 +37,7 @@ foreign import ccall "getHMDResolution"
     getHMDResolution_raw :: HMD -> IO (Ptr CInt)
 getHMDResolution :: Num a => HMD -> IO (a, a)
 getHMDResolution hmd = do
-    resolutionPtr <- getHMDResolution_raw hmd
-    [resolutionW, resolutionH] <- peekArray 2 resolutionPtr
-    freePtr resolutionPtr
+    [resolutionW, resolutionH] <- fromArray 2 (getHMDResolution_raw hmd)
     return (fromIntegral resolutionW, fromIntegral resolutionH)    
 
 -- | Configures the HMD with sane defaults, and returns the HMDToEyeViewOffsets needed for getEyePoses
@@ -54,9 +59,7 @@ foreign import ccall "getHMDRenderTargetSize"
 
 getHMDRenderTargetSize :: HMD -> IO (CInt, CInt)
 getHMDRenderTargetSize hmd = do
-    renderTargetSizePtr <- getHMDRenderTargetSize_raw hmd
-    [renderTargetSizeW, renderTargetSizeH] <- peekArray 2 renderTargetSizePtr
-    freePtr renderTargetSizePtr
+    [renderTargetSizeW, renderTargetSizeH] <- fromArray 2 (getHMDRenderTargetSize_raw hmd)
     return (renderTargetSizeW, renderTargetSizeH)
 
 -- | Takes the framebuffer texture object and its dimensions, and creates a texture descriptor to pass to ovrHmd_EndFrame
@@ -82,13 +85,14 @@ foreign import ccall "getEyeProjection"
 
 
 getEyeProjection :: OVRFOVPort -> Float -> Float -> IO (M44 Float)
-getEyeProjection fovPort zNear zFar = do
+getEyeProjection fovPort zNear zFar = 
     m44FromFlatMatrixPtr =<< getEyeProjection_raw fovPort (realToFrac zNear) (realToFrac zFar)
 
 foreign import ccall "getOrthoSubProjection"
     getOrthoSubProjection_raw :: OVREyeRenderDesc -> CFloat -> CFloat -> HMDToEyeViewOffset -> CInt -> IO (Ptr Float)
+
 getOrthoSubProjection :: OVREyeRenderDesc -> Float -> Float -> HMDToEyeViewOffset -> Int -> IO (M44 Float)
-getOrthoSubProjection eyeRenderDescs zNear zFar hmdToEyeViewOffsets eyeIndex = do
+getOrthoSubProjection eyeRenderDescs zNear zFar hmdToEyeViewOffsets eyeIndex = 
     m44FromFlatMatrixPtr =<< getOrthoSubProjection_raw 
         eyeRenderDescs (realToFrac zNear) (realToFrac zFar) 
         hmdToEyeViewOffsets (fromIntegral eyeIndex)
@@ -116,14 +120,31 @@ foreign import ccall "getPoses_OrientationAndPositionForEye"
 
 getPoses_OrientationAndPositionForEye :: OVRPose -> Int -> IO (Quaternion Float, V3 Float)
 getPoses_OrientationAndPositionForEye pose eyeIndex = do
-    orientPosPtr <- getPoses_OrientationAndPositionForEye_raw pose eyeIndex
-    [oX, oY, oZ, oW, pX, pY, pZ] <- peekArray 7 orientPosPtr
-    freePtr orientPosPtr
+    [oX, oY, oZ, oW, pX, pY, pZ] <- fromArray 7 $ getPoses_OrientationAndPositionForEye_raw pose eyeIndex
     let orientation = Quaternion oW (V3 oX oY oZ)
         position    = V3 pX pY pZ
     return (orientation, position)
 
+-- | Peeks into a malloc'd result array pointer and then frees the array pointer
+fromArray :: Storable a => Int -> IO (Ptr a) -> IO [a]
+fromArray len action = do
+    ptr <- action
+    results <- peekArray len ptr
+    freePtr ptr
+    return results
 
+foreign import ccall "getFOVPort"
+    getFOVPort_raw :: OVRFOVPort -> IO (Ptr Float)
+
+fovPortFromOVRFOVPort :: OVRFOVPort -> IO FOVPort
+fovPortFromOVRFOVPort ovrFOVPort = do
+    [up, down, left, right] <- fromArray 4 (getFOVPort_raw ovrFOVPort)
+    return FOVPort 
+        { fovpUpTan    = up
+        , fovpDownTan  = down
+        , fovpLeftTan  = left
+        , fovpRightTan = right
+        }
 
 foreign import ccall "ovrHmd_DismissHSWDisplay" 
     dismissHSWDisplay :: HMD -> IO ()

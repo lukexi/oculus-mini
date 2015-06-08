@@ -49,8 +49,8 @@ mainLoop renderHMD shader cube = do
 
     -- Vary the zoom and rotation of the cube based on time
     time <- realToFrac . utctDayTime <$> getCurrentTime
-    let zoom = (* 8) . (subtract 1.2) . sin $ time
-        rot  = axisAngle (V3 0 1 0) time
+    let zoom = 3 --(* 8) . (subtract 1.2) . sin $ time
+        rot  = axisAngle (V3 0 1 0) 0--time
     -- Use the cube's shader
     glUseProgram (fromIntegral (unGLProgram shader))
 
@@ -62,7 +62,8 @@ mainLoop renderHMD shader cube = do
             -- Look at the cube's position
             view         = lookAt (V3 0 2 0) (V3 0 0 zoom) (V3 0 1 0)
         
-        renderHMDEyes renderHMD eyePoses $ \projection -> do
-            let mvp = projection !*! view !*! model
+        renderHMDEyes renderHMD eyePoses $ \projection eyeView -> do
+            let finalView = eyeView !*! view 
+            let mvp = projection !*! finalView !*!  model
             renderCube cube mvp
     

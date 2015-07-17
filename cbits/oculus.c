@@ -129,6 +129,8 @@ const int *getHMDRenderTargetSize(ovrHmd hmd) {
     return renderTargetSize;
 }
 
+
+
 float *newFlatMatrixFromOvrMatrix4f(ovrMatrix4f ovrMatrix) {
     float *matrix = malloc(sizeof(float) * 16);
     for (int i = 0; i < 4; ++i) {
@@ -155,16 +157,22 @@ float *getOrthoSubProjection(const ovrEyeRenderDesc eyeRenderDescs[2], float zne
     return newFlatMatrixFromOvrMatrix4f(orthoProj);
 }
 
-float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {
+
+
+float *getPose(const ovrPosef pose) {
     float *orientationAndPosition = malloc(sizeof(float) * 7);
-    orientationAndPosition[0] = eyePoses[eyeIndex].Orientation.x;
-    orientationAndPosition[1] = eyePoses[eyeIndex].Orientation.y;
-    orientationAndPosition[2] = eyePoses[eyeIndex].Orientation.z;
-    orientationAndPosition[3] = eyePoses[eyeIndex].Orientation.w;
-    orientationAndPosition[4] = eyePoses[eyeIndex].Position.x;
-    orientationAndPosition[5] = eyePoses[eyeIndex].Position.y;
-    orientationAndPosition[6] = eyePoses[eyeIndex].Position.z;
+    orientationAndPosition[0] = pose.Orientation.x;
+    orientationAndPosition[1] = pose.Orientation.y;
+    orientationAndPosition[2] = pose.Orientation.z;
+    orientationAndPosition[3] = pose.Orientation.w;
+    orientationAndPosition[4] = pose.Position.x;
+    orientationAndPosition[5] = pose.Position.y;
+    orientationAndPosition[6] = pose.Position.z;
     return orientationAndPosition;
+}
+
+float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {
+    return getPose(eyePoses[eyeIndex]);
 }
 
 float *getFOVPort(const ovrFovPort fovPort) {
@@ -174,6 +182,12 @@ float *getFOVPort(const ovrFovPort fovPort) {
     fovPortVals[2] = fovPort.LeftTan;
     fovPortVals[3] = fovPort.RightTan;
     return fovPortVals;
+}
+
+const float* getHMDPose(ovrHmd hmd) {
+    ovrTrackingState trackingState = ovrHmd_GetTrackingState(hmd, 0.0);
+    ovrPosef headPose = trackingState.HeadPose.ThePose;
+    return getPose(headPose);
 }
 
 // Bundle up the eye texture and its measurements into configuration structs to pass to OVR API

@@ -37,7 +37,7 @@ foreign import ccall "getHMDResolution"
     getHMDResolution_raw :: HMD -> IO (Ptr CInt)
 getHMDResolution :: Num a => HMD -> IO (a, a)
 getHMDResolution hmd = do
-    [resolutionW, resolutionH] <- fromArray 2 (getHMDResolution_raw hmd)
+    [resolutionW, resolutionH] <- fromMallocedArray 2 (getHMDResolution_raw hmd)
     return (fromIntegral resolutionW, fromIntegral resolutionH)    
 
 -- | Configures the HMD with sane defaults, and returns the HMDToEyeViewOffsets needed for getEyePoses
@@ -59,7 +59,7 @@ foreign import ccall "getHMDRenderTargetSize"
 
 getHMDRenderTargetSize :: HMD -> IO (CInt, CInt)
 getHMDRenderTargetSize hmd = do
-    [renderTargetSizeW, renderTargetSizeH] <- fromArray 2 (getHMDRenderTargetSize_raw hmd)
+    [renderTargetSizeW, renderTargetSizeH] <- fromMallocedArray 2 (getHMDRenderTargetSize_raw hmd)
     return (renderTargetSizeW, renderTargetSizeH)
 
 -- | Takes the framebuffer texture object and its dimensions, and creates a texture descriptor to pass to ovrHmd_EndFrame
@@ -119,15 +119,31 @@ foreign import ccall "getPoses_OrientationAndPositionForEye"
     getPoses_OrientationAndPositionForEye_raw :: OVRPose -> Int -> IO (Ptr Float)
 
 getPoses_OrientationAndPositionForEye :: OVRPose -> Int -> IO (Quaternion Float, V3 Float)
-getPoses_OrientationAndPositionForEye pose eyeIndex = do
-    [oX, oY, oZ, oW, pX, pY, pZ] <- fromArray 7 $ getPoses_OrientationAndPositionForEye_raw pose eyeIndex
+getPoses_OrientationAndPositionForEye pose eyeIndex = 
+    orientationAndPositionFromMallocedArray $ getPoses_OrientationAndPositionForEye_raw pose eyeIndex
+
+foreign import ccall "getHMDPose"
+    getHMDPose_raw :: HMD -> IO (Ptr Float)
+
+-- | Returns the last read position and orientation of the headset.
+-- NOTE: You'll normally want to use getEyePoses to get orientations/positions for rendering, 
+-- as it is meant to be used with beginFrame/endFrame.
+-- This function is instead for times when it's useful to just generally query the position of the headset,
+-- for example for calculating physics or networking the player's head position.
+getHMDPose :: HMD -> IO (Quaternion Float, V3 Float)
+getHMDPose hmd = 
+    orientationAndPositionFromMallocedArray $ getHMDPose_raw hmd
+
+orientationAndPositionFromMallocedArray :: IO (Ptr Float) -> IO (Quaternion Float, V3 Float)
+orientationAndPositionFromMallocedArray action = do
+    [oX, oY, oZ, oW, pX, pY, pZ] <- fromMallocedArray 7 action
     let orientation = Quaternion oW (V3 oX oY oZ)
         position    = V3 pX pY pZ
     return (orientation, position)
 
 -- | Peeks into a malloc'd result array pointer and then frees the array pointer
-fromArray :: Storable a => Int -> IO (Ptr a) -> IO [a]
-fromArray len action = do
+fromMallocedArray :: Storable a => Int -> IO (Ptr a) -> IO [a]
+fromMallocedArray len action = do
     ptr <- action
     results <- peekArray len ptr
     freePtr ptr
@@ -138,7 +154,7 @@ foreign import ccall "getFOVPort"
 
 fovPortFromOVRFOVPort :: OVRFOVPort -> IO FOVPort
 fovPortFromOVRFOVPort ovrFOVPort = do
-    [up, down, left, right] <- fromArray 4 (getFOVPort_raw ovrFOVPort)
+    [up, down, left, right] <- fromMallocedArray 4 (getFOVPort_raw ovrFOVPort)
     return FOVPort 
         { fovpUpTan    = up
         , fovpDownTan  = down

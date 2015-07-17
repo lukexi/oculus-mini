@@ -159,7 +159,7 @@ float *getOrthoSubProjection(const ovrEyeRenderDesc eyeRenderDescs[2], float zne
 
 
 
-float *getPose(const ovrPosef pose) {
+float *poseToArray(const ovrPosef pose) {
     float *orientationAndPosition = malloc(sizeof(float) * 7);
     orientationAndPosition[0] = pose.Orientation.x;
     orientationAndPosition[1] = pose.Orientation.y;
@@ -172,7 +172,7 @@ float *getPose(const ovrPosef pose) {
 }
 
 float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {
-    return getPose(eyePoses[eyeIndex]);
+    return poseToArray(eyePoses[eyeIndex]);
 }
 
 float *getFOVPort(const ovrFovPort fovPort) {
@@ -187,7 +187,7 @@ float *getFOVPort(const ovrFovPort fovPort) {
 const float* getHMDPose(ovrHmd hmd) {
     ovrTrackingState trackingState = ovrHmd_GetTrackingState(hmd, 0.0);
     ovrPosef headPose = trackingState.HeadPose.ThePose;
-    return getPose(headPose);
+    return poseToArray(headPose);
 }
 
 // Bundle up the eye texture and its measurements into configuration structs to pass to OVR API

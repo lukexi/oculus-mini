@@ -35,27 +35,32 @@ data RenderHMD = RenderHMD
   , renEyes                  :: [Eye]
   }
 
-renderHMDEyes :: MonadIO m => RenderHMD -> OVRPose -> (M44 GLfloat -> M44 GLfloat -> m b) -> m ()
-renderHMDEyes renderHMD eyePoses action = forM_ (renEyes renderHMD) $ \eye -> do
+setViewportForEye eye = glViewport x y w h
+  where (x,y,w,h) = eyeViewport eye
+
+getEyeViewsForFrame :: MonadIO m => [Eye] -> OVRPose -> m [(Eye, M44 GLfloat)]
+getEyeViewsForFrame eyes eyePoses = forM eyes $ \eye -> do
   -- Get its orientation and position
   (eyeOrientation, eyePosition) <- liftIO $ getPoses_OrientationAndPositionForEye eyePoses (eyeIndex eye)
 
   let -- Convert the eye pose into a transformation matrix
     eyeTransform  = mkTransformation eyeOrientation eyePosition
     -- Invert eye transform to get correct head movement
-    eyeTransformI = fromMaybe eyeTransform (inv44 eyeTransform)
-    -- Passing through corrected eye matrix
-    eyeView       = eyeTransformI
-    -- Get this eye's viewport to render into
-    (x,y,w,h)     = eyeViewport eye
-  glViewport x y w h
+    eyeView       = fromMaybe eyeTransform (inv44 eyeTransform)
+  return (eye, eyeView)
 
-  action ( eyeProjection eye ) eyeView
+-- | It is usually more efficient to call this many times per frame
+-- rather than once at the top, to save the cost of e.g. switching shaders
+-- twice as often
+renderHMDEyes :: MonadIO m => [(Eye, M44 GLfloat)] -> (M44 GLfloat -> M44 GLfloat -> m b) -> m ()
+renderHMDEyes eyesForFrame action = forM_ eyesForFrame $ \(eye, eyeView) -> do
+  setViewportForEye eye
+  action (eyeProjection eye) eyeView  
 
 -- | Call with an action to render a single frame to the HMD.
 -- You'll be passed an OVRPose that you can then pass to renderHMDEyes to 
 -- render to each eye after you've done any initial setup.
-renderHMDFrame :: MonadIO m => RenderHMD -> (OVRPose -> m a) -> m a
+renderHMDFrame :: MonadIO m => RenderHMD -> ([(Eye, M44 GLfloat)] -> m a) -> m a
 renderHMDFrame RenderHMD{..} action = do
   -- Tell OVR API we're about to render a frame
   liftIO $ beginFrame renHMD
@@ -65,9 +70,10 @@ renderHMDFrame RenderHMD{..} action = do
 
   -- Get the current orientation and position of the HMD
   eyePoses <- liftIO $ getEyePoses renHMD renEyeViewOffsets
+  eyeViews <- getEyeViewsForFrame renEyes eyePoses
 
-  -- Call the render action with the eyePoses, which should then call renderHMDEyes
-  result <- action eyePoses
+  -- Call the render action with the eyeViews
+  result <- action eyeViews
   
   -- Unbind the eye texture
   glBindFramebuffer GL_FRAMEBUFFER 0

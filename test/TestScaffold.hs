@@ -54,7 +54,7 @@ mainLoop renderHMD shader cube = do
     -- Use the cube's shader
     glUseProgram (fromIntegral (unGLProgram shader))
 
-    renderHMDFrame renderHMD $ \eyePoses -> do
+    renderHMDFrame renderHMD $ \eyeViews -> do
         -- Clear the framebuffer
         glClear ( GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT )
 
@@ -62,7 +62,7 @@ mainLoop renderHMD shader cube = do
             -- Look at the cube's position
             view         = lookAt (V3 0 2 0) (V3 0 0 zoom) (V3 0 1 0)
         
-        renderHMDEyes renderHMD eyePoses $ \projection eyeView -> do
+        renderHMDEyes eyeViews $ \projection eyeView -> do
             let finalView = eyeView !*! view 
             let mvp = projection !*! finalView !*!  model
             renderCube cube mvp

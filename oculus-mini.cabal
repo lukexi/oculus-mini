@@ -28,7 +28,8 @@ library
   c-sources:           cbits/oculus.c
   -- For windows gcc:
   cc-options:          -std=c99
-  ghc-options:         -Wall
+  ghc-prof-options:    -Wall -O2 -fprof-auto
+  ghc-options:         -Wall -O2
   include-dirs:        include
   default-language:    Haskell2010
   frameworks:          LibOVRRT_0

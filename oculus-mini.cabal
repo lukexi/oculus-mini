@@ -33,6 +33,7 @@ library
   include-dirs:        include
   default-language:    Haskell2010
   frameworks:          LibOVRRT_0
+  frameworks-dir:      ~/Library/Frameworks
   if os(windows)
     extra-libraries:     OVRRT64_0_5
     extra-lib-dirs:      C:\Windows\System32

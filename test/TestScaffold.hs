@@ -5,7 +5,7 @@ import Graphics.Oculus
 import Data.Bits
 import Control.Monad
 import Linear
-import Data.Time
+--import Data.Time
 
 import SetupGLFW
 import ShaderLoader
@@ -18,13 +18,10 @@ import Cube
 main :: IO a
 main = do
 
+    _win <- setupGLFW "Scaffold" 1024 768
+    putStrLn "A"
     hmd <- createHMD
-    (resX, resY) <- getHMDResolution hmd
-    _win <- setupGLFW "Scaffold" resX resY
-
-    renderHMD <- configureHMDRendering hmd "Scaffold"
-
-    dismissHSWDisplay hmd
+    putStrLn "B"
     recenterPose hmd
 
     -- Scene rendering setup
@@ -34,13 +31,13 @@ main = do
 
     glClearColor 0 0.1 0.1 1
     glEnable GL_DEPTH_TEST
-
+    putStrLn "we're here"
     forever $ 
-        mainLoop renderHMD shader cube
+        mainLoop hmd shader cube
 
 
-mainLoop :: RenderHMD -> GLProgram -> Cube -> IO ()
-mainLoop renderHMD shader cube = do
+mainLoop :: HMD -> GLProgram -> Cube -> IO ()
+mainLoop hmd shader cube = do
 
     -- glGetErrors
 
@@ -48,13 +45,13 @@ mainLoop renderHMD shader cube = do
     GLFW.pollEvents
 
     -- Vary the zoom and rotation of the cube based on time
-    time <- realToFrac . utctDayTime <$> getCurrentTime
+    --time <- realToFrac . utctDayTime <$> getCurrentTime
     let zoom = 3 --(* 8) . (subtract 1.2) . sin $ time
         rot  = axisAngle (V3 0 1 0) 0--time
     -- Use the cube's shader
     glUseProgram (fromIntegral (unGLProgram shader))
 
-    renderHMDFrame renderHMD $ \eyeViews -> do
+    renderHMDFrame hmd $ \eyeViews -> do
         -- Clear the framebuffer
         glClear ( GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT )
 

@@ -23,7 +23,7 @@ library
     Graphics.Oculus.Scaffold
   -- other-modules:    .   
   other-extensions:    ForeignFunctionInterface
-  build-depends:       base >=4.8 && <4.9, linear, gl, mtl
+  build-depends:       base >=4.8 && <4.9, linear, gl, mtl, containers
   hs-source-dirs:      src
   c-sources:           cbits/oculus.c
   -- For windows gcc:
@@ -35,7 +35,7 @@ library
   frameworks:          LibOVRRT_0
   frameworks-dir:      ~/Library/Frameworks
   if os(windows)
-    extra-libraries:     OVRRT64_0_5
+    extra-libraries:     OVRRT64_0_6
     extra-lib-dirs:      C:\Windows\System32
 
 test-suite cube

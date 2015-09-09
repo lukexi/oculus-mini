@@ -1,135 +1,113 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../include/OVR_CAPI_0_5_0.h"
+#include <windows.h> // just for max/min :P
+#include "../include/OVR_CAPI_0_6_0.h"
 #include "../include/OVR_CAPI_GL.h"
 #include "../include/OVR_CAPI_Util.h"
+ 
+/*
 
-#ifdef _WIN32
-// On Windows, we need to grab a native window handle to use Direct Mode
-#include <windows.h>
+[ ] Configure textures in layer
+[x] Create framebuffer per texture
+[x] Get proper eye projections
+[x] Get eye viewports
 
-typedef struct {
-    HWND hWnd;
-    char WindowName[256];
-} cell;
+*/
 
-BOOL CALLBACK EnumWndProc(HWND hWnd, LPARAM lParam)
-{
-    char buff[256]="";
-    GetWindowText( hWnd,buff, sizeof(buff));
-    if(strcmp(buff,((cell*)lParam)->WindowName)==0){
-        ((cell*)lParam)->hWnd = hWnd;
-    }
-    return TRUE;
-}
-
-HWND getWindowHandle(char* wName)
-{
-    cell c;
-    c.hWnd =NULL;
-    strcpy(c.WindowName,wName);
-
-    EnumWindows( EnumWndProc, (LPARAM)&c);
-
-        return c.hWnd;
-}
-#endif
+typedef struct HMDInfo_ {
+    ovrHmd             hmd;
+    ovrSwapTextureSet *textureSet;
+    ovrLayerEyeFov     layer;
+    ovrSizei           bufferSize;
+    ovrEyeRenderDesc   eyeRenderDesc[2];
+    ovrVector3f        hmdToEyeViewOffset[2];
+} HMDInfo;
 
 
-ovrHmd createHMD() {
+
+// Creates and configures the HMD for OpenGL rendering
+HMDInfo *createHMDInfo(int gl_srgb_alpha8_enum) {
+    // Initialize and create the HMD
     ovr_Initialize(0);
 
-    ovrHmd hmd = ovrHmd_Create(0);
-    if (hmd == 0) {
-        hmd = ovrHmd_CreateDebug(ovrHmd_DK2);
-    }
+    ovrHmd hmd;
+    ovrHmd_Create(0, &hmd);
 
-    return hmd;
-}
-
-// Configures the HMD and returns the ovrEyeRenderDescs for each eye
-const ovrEyeRenderDesc *configureHMD(ovrHmd hmd, char *windowName) {
-
-#ifdef _WIN32
-    HWND nativeWindowHandle = getWindowHandle(windowName);
-    ovrHmd_AttachToWindow(hmd, nativeWindowHandle, 0, 0);
-#endif
-    
+    HMDInfo *hmdInfo = malloc(sizeof(HMDInfo));
+    hmdInfo->hmd = hmd;
+        
     // Enable all tracking capabilities of the headset
     ovrTrackingCaps trackingCaps = ovrTrackingCap_Orientation  
                                  | ovrTrackingCap_MagYawCorrection
                                  | ovrTrackingCap_Position;
     ovrBool success = ovrHmd_ConfigureTracking(hmd, trackingCaps, 0);
     
-    // Configure the Oculus rendering to use OpenGL, at the HMD's resolution
-    union ovrGLConfig cfg;
-    memset(&cfg, 0, sizeof(cfg));
-    cfg.OGL.Header.API = ovrRenderAPI_OpenGL;
-    cfg.OGL.Header.BackBufferSize = hmd->Resolution;
-    cfg.OGL.Header.Multisample = 0;
+    // Find the desired eyes texture size
+    ovrSizei recommenedTex0Size = ovrHmd_GetFovTextureSize(hmd, ovrEye_Left,  hmd->DefaultEyeFov[0], 1.0f);
+    ovrSizei recommenedTex1Size = ovrHmd_GetFovTextureSize(hmd, ovrEye_Right, hmd->DefaultEyeFov[1], 1.0f);
+    ovrSizei bufferSize;
+    bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
+    bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);
+    hmdInfo->bufferSize = bufferSize;
+
+    // Create the texture set
+    ovrSwapTextureSet *textureSet = 0;
+    ovrHmd_CreateSwapTextureSetGL(hmd, gl_srgb_alpha8_enum, bufferSize.w, bufferSize.h, &textureSet);
+    hmdInfo->textureSet = textureSet;
+
+    // Initialize VR structures, filling out description.
     
-    // Configure features of the Oculus distortion rendering
-    ovrDistortionCaps distortionCaps = ovrDistortionCap_TimeWarp
-                                     | ovrDistortionCap_Vignette
-                                     | ovrDistortionCap_Overdrive 
-                                     | ovrDistortionCap_HqDistortion;
-    
-    ovrEyeRenderDesc *eyeRenderDescs = malloc(sizeof(ovrEyeRenderDesc) * 2);
-    int configResult = ovrHmd_ConfigureRendering(hmd, &cfg.Config, distortionCaps, hmd->MaxEyeFov, eyeRenderDescs);
-    
-    // Configure the HMD display
-    ovrHmdCaps hmdCaps = ovrHmdCap_ExtendDesktop 
-                       | ovrHmdCap_LowPersistence
-                       | ovrHmdCap_DynamicPrediction;
-    ovrHmd_SetEnabledCaps(hmd, hmdCaps);
+    // ovrHmdDesc hmdDesc = ovrHmd_GetHmdDesc(hmd); // 0.7 for DefaultEyeFov
+    hmdInfo->eyeRenderDesc[0] = ovrHmd_GetRenderDesc(hmd, ovrEye_Left, hmd->DefaultEyeFov[0]);
+    hmdInfo->eyeRenderDesc[1] = ovrHmd_GetRenderDesc(hmd, ovrEye_Right, hmd->DefaultEyeFov[1]);
+    hmdInfo->hmdToEyeViewOffset[0] = hmdInfo->eyeRenderDesc[0].HmdToEyeViewOffset;
+    hmdInfo->hmdToEyeViewOffset[1] = hmdInfo->eyeRenderDesc[1].HmdToEyeViewOffset;
+
+    // Initialize our single full screen Fov layer.
+    hmdInfo->layer.Header.Type      = ovrLayerType_EyeFov;
+    hmdInfo->layer.Header.Flags     = ovrLayerFlag_TextureOriginAtBottomLeft;
+    hmdInfo->layer.ColorTexture[0]  = textureSet;
+    hmdInfo->layer.ColorTexture[1]  = textureSet;
+    hmdInfo->layer.Fov[0]           = hmdInfo->eyeRenderDesc[0].Fov;
+    hmdInfo->layer.Fov[1]           = hmdInfo->eyeRenderDesc[1].Fov;
+    hmdInfo->layer.Viewport[0]      = (ovrRecti){ { 0,                0 } , { bufferSize.w / 2, bufferSize.h } };
+    hmdInfo->layer.Viewport[1]      = (ovrRecti){ { bufferSize.w / 2, 0 } , { bufferSize.w / 2, bufferSize.h } };
+    // layer.RenderPose is updated later per frame.
 
     // Reset the pose
     ovrHmd_RecenterPose(hmd);
 
-    return eyeRenderDescs;
+    return hmdInfo;
 }
 
-const ovrVector3f *getEyeRenderDesc_HmdToEyeViewOffsets(const ovrEyeRenderDesc eyeRenderDescs[2]) {
-    // Grab the eyeViewOffsets needed for configure the camera and passing to ovr_EndFrame
-    ovrVector3f *eyeViewOffsets = malloc(sizeof(ovrVector3f) * 2);
-    eyeViewOffsets[0] = eyeRenderDescs[0].HmdToEyeViewOffset;
-    eyeViewOffsets[1] = eyeRenderDescs[1].HmdToEyeViewOffset;
-    return eyeViewOffsets;
+int getLayerTextureCount(HMDInfo *hmdInfo) {
+    return hmdInfo->textureSet->TextureCount;
 }
 
-const ovrFovPort *getEyeRenderDesc_FOV(const ovrEyeRenderDesc eyeRenderDescs[2], int eyeIndex) {
-
-    // Grab the eyeViewOffsets needed for configure the camera and passing to ovr_EndFrame
-    ovrFovPort *eyeFovPort = malloc(sizeof(ovrFovPort));
-    *eyeFovPort = eyeRenderDescs[eyeIndex].Fov;
-    return eyeFovPort;
+GLuint getLayerTextureIDAtIndex(HMDInfo *hmdInfo, int i) {
+    return ((ovrGLTexture)hmdInfo->textureSet->Textures[i]).OGL.TexId;
 }
 
-const int *getHMDResolution(ovrHmd hmd) {
-    int *hmdResolution = malloc(sizeof(int) * 2);
-    hmdResolution[0] = hmd->Resolution.w;
-    hmdResolution[1] = hmd->Resolution.h;
-    return hmdResolution;
+int *getHMDBufferSize(HMDInfo *hmdInfo) {
+    return (int *)&hmdInfo->bufferSize;
 }
 
-const int *getHMDRenderTargetSize(ovrHmd hmd) {
-    // Find out how large the OVR recommends each eye texture should be
-    ovrSizei recommenedTex0Size = ovrHmd_GetFovTextureSize(hmd, ovrEye_Left, hmd->DefaultEyeFov[ovrEye_Left], 1.0);
-    ovrSizei recommenedTex1Size = ovrHmd_GetFovTextureSize(hmd, ovrEye_Right, hmd->DefaultEyeFov[ovrEye_Right], 1.0);
-
-    // Combine their sizes so we can use one large texture for both eyes
-    int renderTargetSizeW = recommenedTex0Size.w + recommenedTex1Size.w;
-    int renderTargetSizeH = recommenedTex0Size.h > recommenedTex1Size.h ? recommenedTex0Size.h : recommenedTex1Size.h;
-
-    int *renderTargetSize = malloc(sizeof(int) * 2);
-    renderTargetSize[0] = renderTargetSizeW;
-    renderTargetSize[1] = renderTargetSizeH;
-    return renderTargetSize;
+// Call this at the beginning of each frame to find which render target to render to
+int getFrameLayerTextureIndex(HMDInfo *hmdInfo) {
+    ovrSwapTextureSet *textureSet = hmdInfo->textureSet;
+    textureSet->CurrentIndex = (textureSet->CurrentIndex + 1) % textureSet->TextureCount;
+    return textureSet->CurrentIndex;
 }
 
-
+int *getLayerViewportForEye(HMDInfo *hmdInfo, int i) {
+    int *result = malloc(sizeof(int) * 4);
+    result[0] = hmdInfo->layer.Viewport[i].Pos.x;
+    result[1] = hmdInfo->layer.Viewport[i].Pos.y;
+    result[2] = hmdInfo->layer.Viewport[i].Size.w;
+    result[3] = hmdInfo->layer.Viewport[i].Size.h;
+    return result;
+}
 
 float *newFlatMatrixFromOvrMatrix4f(ovrMatrix4f ovrMatrix) {
     float *matrix = malloc(sizeof(float) * 16);
@@ -141,15 +119,47 @@ float *newFlatMatrixFromOvrMatrix4f(ovrMatrix4f ovrMatrix) {
     return matrix;
 }
 
-float *getEyeProjection(ovrFovPort *fov, float znear, float zfar) {
+float *createProjectionForEye(HMDInfo *info, float znear, float zfar, int i) {
+    ovrFovPort *fov = &info->layer.Fov[i];
     ovrMatrix4f projection = ovrMatrix4f_Projection(*fov, znear, zfar, ovrProjection_RightHanded);
     return newFlatMatrixFromOvrMatrix4f(projection);
 }
 
+void calcEyePoses(HMDInfo *hmdInfo) {
+    // Get both eye poses simultaneously, with IPD offset already included.
+    ovrFrameTiming   ftiming  = ovrHmd_GetFrameTiming(hmdInfo->hmd, 0);
+    ovrTrackingState hmdState = ovrHmd_GetTrackingState(hmdInfo->hmd, ftiming.DisplayMidpointSeconds);
+    ovr_CalcEyePoses(
+        hmdState.HeadPose.ThePose, 
+        hmdInfo->hmdToEyeViewOffset, 
+        hmdInfo->layer.RenderPose);
+}
 
-float *getOrthoSubProjection(const ovrEyeRenderDesc eyeRenderDescs[2], float znear, float zfar, const ovrVector3f hmdToEyeViewOffset[2], int eyeIndex) {
-    ovrFovPort fov = eyeRenderDescs[eyeIndex].Fov;
-    float hmdToEyeViewOffsetX = hmdToEyeViewOffset[eyeIndex].x;
+ovrTexture *createMirrorTexture(HMDInfo *hmdInfo, int gl_srgb_alpha8_enum, int width, int height) {
+    ovrTexture *outTexture;
+    ovrHmd_CreateMirrorTextureGL(hmdInfo->hmd, gl_srgb_alpha8_enum, width, height, &outTexture);
+    return outTexture;
+}
+
+void submitFrame(HMDInfo *hmdInfo) {
+    ovrHmd hmd = hmdInfo->hmd;
+    ovrLayerEyeFov layer = hmdInfo->layer;
+    const unsigned int frameIndex = 0; // specifies "next frame after last call"
+    const ovrViewScaleDesc* viewScaleDesc = 0; // Specifies default world scale
+    unsigned int layerCount = 1;
+    const ovrLayerHeader* layers = &layer.Header;
+    ovrHmd_SubmitFrame(hmd, frameIndex, viewScaleDesc, &layers, layerCount);
+}
+
+
+
+
+
+
+
+float *createOrthoSubProjectionForEye(HMDInfo *hmdInfo, int i, float znear, float zfar) {
+    ovrFovPort fov = hmdInfo->eyeRenderDesc[i].Fov;
+    float hmdToEyeViewOffsetX = hmdInfo->hmdToEyeViewOffset[i].x;
     ovrVector2f scale = {1.0,1.0};
     float distance = 1;
     ovrMatrix4f projection = ovrMatrix4f_Projection(fov, znear, zfar, ovrProjection_RightHanded);
@@ -171,17 +181,8 @@ float *poseToArray(const ovrPosef pose) {
     return orientationAndPosition;
 }
 
-float *getPoses_OrientationAndPositionForEye(const ovrPosef *eyePoses, int eyeIndex) {
-    return poseToArray(eyePoses[eyeIndex]);
-}
-
-float *getFOVPort(const ovrFovPort fovPort) {
-    float *fovPortVals = malloc(sizeof(float) * 4);
-    fovPortVals[0] = fovPort.UpTan;
-    fovPortVals[1] = fovPort.DownTan;
-    fovPortVals[2] = fovPort.LeftTan;
-    fovPortVals[3] = fovPort.RightTan;
-    return fovPortVals;
+float *getOrientationAndPositionForEye(HMDInfo *hmdInfo, int i) {
+    return poseToArray(hmdInfo->layer.RenderPose[i]);
 }
 
 const float* getHMDPose(ovrHmd hmd) {
@@ -190,57 +191,6 @@ const float* getHMDPose(ovrHmd hmd) {
     return poseToArray(headPose);
 }
 
-// Bundle up the eye texture and its measurements into configuration structs to pass to OVR API
-const ovrTexture *createOVRTextureArray(GLuint eyeTexture, int width, int height) {
-
-    ovrSizei textureSize = (ovrSizei){width, height};
-
-    ovrSizei viewportSize = (ovrSizei){width / 2, height};
-
-    // Configure the viewport for rendering to the left eye
-    ovrRecti leftViewport;
-    leftViewport.Pos = (ovrVector2i){0, 0};
-    leftViewport.Size = viewportSize;
-
-    // Create the texture header for the left eye
-    ovrTextureHeader textureHeader0;
-    textureHeader0.API = ovrRenderAPI_OpenGL;
-    textureHeader0.TextureSize = textureSize;
-    textureHeader0.RenderViewport = leftViewport;
-
-    // Configure the viewport for rendering to the right eye
-    ovrRecti rightViewport;
-    rightViewport.Pos = (ovrVector2i){width / 2, 0};
-    rightViewport.Size = viewportSize;
-
-    // Create the texture header for the right eye
-    ovrTextureHeader textureHeader1;
-    textureHeader1.API = ovrRenderAPI_OpenGL;
-    textureHeader1.TextureSize = textureSize;
-    textureHeader1.RenderViewport = rightViewport;
-
-    // We use one large combined texture for both eyes, so we configure accordingly.
-    ovrGLTexture eyeGLTexture0;
-    eyeGLTexture0.OGL.Header = textureHeader0;
-    eyeGLTexture0.OGL.TexId  = eyeTexture;
-
-    ovrGLTexture eyeGLTexture1;
-    eyeGLTexture1.OGL.Header = textureHeader1;
-    eyeGLTexture1.OGL.TexId  = eyeTexture;
-
-    ovrTexture *eyeTextureData = malloc(sizeof(ovrTexture) * 2);
-    eyeTextureData[0] = eyeGLTexture0.Texture;
-    eyeTextureData[1] = eyeGLTexture1.Texture;
-
-    return eyeTextureData;
-}
-
-void beginFrame(ovrHmd hmd) {
-    ovrHmd_BeginFrame(hmd, 0);
-}
-
-const ovrPosef *getEyePoses(ovrHmd hmd, const ovrVector3f hmdToEyeViewOffset[2]) {
-    ovrPosef *eyePoses = malloc(sizeof(ovrPosef) * 2);
-    ovrHmd_GetEyePoses(hmd, 0, hmdToEyeViewOffset, eyePoses, 0);
-    return eyePoses;
+void recenterPose(HMDInfo *hmdInfo) {
+    ovrHmd_RecenterPose(hmdInfo->hmd);
 }

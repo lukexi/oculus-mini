@@ -11,12 +11,16 @@ newtype HMDInfo                = HMDInfo (Ptr HMDInfo)
 newtype LayerTextureIndex      = LayerTextureIndex Int deriving (Eq, Show, Ord)
 newtype LayerTextureID         = LayerTextureID {unLayerTextureID :: Int}
 
+-- We pass this in from Graphics.GL to avoid needing to
+-- import GL headers in oculus.c (to avoid GLEW, etc.)
+type GLsRGB8Alpha8 = Int
+
 foreign import ccall "free" 
     freePtr :: Ptr a -> IO ()
 
 -- | Initialize the Oculus hardware and create the HMDInfo reference
 foreign import ccall "createHMDInfo" 
-    createHMDInfo :: IO HMDInfo
+    createHMDInfo ::  GLsRGB8Alpha8 -> IO HMDInfo
 
 -- | Call each of these at the beginning of each frame
 -- to update the eye poses and find out which renderbuffer
@@ -45,6 +49,8 @@ foreign import ccall "getLayerTextureCount"
 foreign import ccall "getLayerTextureIDAtIndex"
     getLayerTextureIDAtIndex :: HMDInfo -> LayerTextureIndex -> IO LayerTextureID
 
+foreign import ccall "createMirrorTexture"
+    createMirrorTexture :: HMDInfo -> GLsRGB8Alpha8 -> IO LayerTextureID
 
 -- | Returns the size of the texture/framebuffer/renderbuffer you should create to render into.
 foreign import ccall "getHMDBufferSize" 

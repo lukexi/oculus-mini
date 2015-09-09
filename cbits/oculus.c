@@ -135,10 +135,13 @@ void calcEyePoses(HMDInfo *hmdInfo) {
         hmdInfo->layer.RenderPose);
 }
 
-ovrTexture *createMirrorTexture(HMDInfo *hmdInfo, int gl_srgb_alpha8_enum, int width, int height) {
+GLuint createMirrorTexture(HMDInfo *hmdInfo, int gl_srgb_alpha8_enum) {
     ovrTexture *outTexture;
-    ovrHmd_CreateMirrorTextureGL(hmdInfo->hmd, gl_srgb_alpha8_enum, width, height, &outTexture);
-    return outTexture;
+    ovrHmd_CreateMirrorTextureGL(
+        hmdInfo->hmd, gl_srgb_alpha8_enum, 
+        hmdInfo->bufferSize.w, hmdInfo->bufferSize.h, 
+        &outTexture);
+    return ((ovrGLTexture*)outTexture)->OGL.TexId;
 }
 
 void submitFrame(HMDInfo *hmdInfo) {

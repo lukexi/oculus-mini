@@ -18,9 +18,12 @@ import Cube
 main :: IO a
 main = do
 
-    _win <- setupGLFW "Scaffold" 1024 768
+    window <- setupGLFW "Scaffold" 1024 768
     putStrLn "A"
     hmd <- createHMD
+    GLFW.setWindowSize window 
+        (fromIntegral . fst . hmdBufferSize $ hmd) 
+        (fromIntegral . snd . hmdBufferSize $ hmd)
     putStrLn "B"
     recenterPose hmd
 
@@ -33,11 +36,11 @@ main = do
     glEnable GL_DEPTH_TEST
     putStrLn "we're here"
     forever $ 
-        mainLoop hmd shader cube
+        mainLoop window hmd shader cube
 
 
-mainLoop :: HMD -> GLProgram -> Cube -> IO ()
-mainLoop hmd shader cube = do
+mainLoop :: GLFW.Window -> HMD -> GLProgram -> Cube -> IO ()
+mainLoop window hmd shader cube = do
 
     -- glGetErrors
 
@@ -63,4 +66,7 @@ mainLoop hmd shader cube = do
             let finalView = eyeView !*! view 
             let mvp = projection !*! finalView !*!  model
             renderCube cube mvp
-    
+
+    -- We must call swapBuffers ourselves for this one!
+    renderHMDMirror hmd
+    GLFW.swapBuffers window

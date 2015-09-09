@@ -25,5 +25,5 @@ setupGLFW windowName desiredW desiredH = do
     
     GLFW.makeContextCurrent (Just win)
 
-    GLFW.swapInterval 1
+    GLFW.swapInterval 0
     return win

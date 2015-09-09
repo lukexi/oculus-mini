@@ -6,6 +6,7 @@ module Graphics.Oculus.Scaffold
   , renderHMDFrame 
   , renderHMDEyes
   , recenterPose
+  , renderHMDMirror
   ) where
 
 import Graphics.Oculus.API
@@ -36,6 +37,8 @@ data HMD = HMD
   { hmdInfo                  :: HMDInfo
   , hmdFramebuffers          :: Map LayerTextureIndex Framebuffer
   , hmdEyes                  :: [Eye]
+  , hmdMirrorFramebuffer     :: Framebuffer
+  , hmdBufferSize            :: (GLint, GLint)
   }
 
 
@@ -43,7 +46,7 @@ data HMD = HMD
 createHMD :: IO HMD
 createHMD = do
 
-  hmdInfo_ <- createHMDInfo
+  hmdInfo_ <- createHMDInfo GL_SRGB8_ALPHA8
   (w,h) <- getHMDBufferSize hmdInfo_
 
   numTextures <- getLayerTextureCount hmdInfo_
@@ -52,14 +55,12 @@ createHMD = do
   let createLayerFramebuffer framebuffers textureIndex = do
         let layerTextureIndex = LayerTextureIndex textureIndex
         texID       <- getLayerTextureIDAtIndex hmdInfo_ layerTextureIndex
-        framebuffer <- createFrameBuffer w h (fromIntegral . unLayerTextureID $ texID)
+        framebuffer <- createFrameBuffer w h (fromIntegral . unLayerTextureID $ texID) True
         return (Map.insert layerTextureIndex framebuffer framebuffers)
   framebuffers <- foldM createLayerFramebuffer mempty [0..numTextures]
 
   viewportLeft  <- getLayerViewportForEye hmdInfo_ 0
   viewportRight <- getLayerViewportForEye hmdInfo_ 1
-  print viewportLeft
-  print viewportRight
 
   -- Get the perspective projection matrix for each eye
   eyeProjectionLeft  <- getEyeProjection hmdInfo_ 0.1 1000 0
@@ -75,10 +76,16 @@ createHMD = do
                    }
              ]
 
+  -- Create a mirror framebuffer for mirroring into the GLFW window
+  mirrorTexID <- createMirrorTexture hmdInfo_ GL_SRGB8_ALPHA8
+  mirrorFramebuffer <- createFrameBuffer w h (fromIntegral . unLayerTextureID $ mirrorTexID) False
+  
   return HMD
     { hmdInfo = hmdInfo_
     , hmdFramebuffers = framebuffers
     , hmdEyes = eyes
+    , hmdMirrorFramebuffer = mirrorFramebuffer
+    , hmdBufferSize = (w,h)
     }
 
 
@@ -106,6 +113,7 @@ renderHMDEyes eyesForFrame action = forM_ eyesForFrame $ \(eye, eyeView) -> do
 -- render to each eye after you've done any initial setup.
 renderHMDFrame :: MonadIO m => HMD -> ([(Eye, M44 GLfloat)] -> m a) -> m a
 renderHMDFrame hmd@HMD{..} action = do
+
   -- Tell OVR API we're about to render a frame
   calcEyePoses hmdInfo
   -- Find which framebuffer we should render into
@@ -132,10 +140,23 @@ renderHMDFrame hmd@HMD{..} action = do
 
   return result
 
+-- | Blits the Mirroring framebuffer to the default framebuffer
+-- Be sure to call your windowing API's swap function
+-- after calling this (e.g. GLFW.swapBuffers)
+renderHMDMirror :: MonadIO m => HMD -> m ()
+renderHMDMirror HMD{..} = do
+  -- Render into the mirror framebuffer
+  glBindFramebuffer GL_READ_FRAMEBUFFER (unFramebuffer hmdMirrorFramebuffer)
+  let (w,h) = hmdBufferSize
+  glBlitFramebuffer 
+    0 0 w h
+    0 h w 0
+    GL_COLOR_BUFFER_BIT GL_NEAREST 
+  glBindFramebuffer GL_FRAMEBUFFER 0
 
 -- | Create the framebuffer we'll render into and pass to the Oculus SDK
-createFrameBuffer :: GLsizei -> GLsizei -> GLuint -> IO Framebuffer
-createFrameBuffer sizeX sizeY frameBufferTexture = do
+createFrameBuffer :: GLsizei -> GLsizei -> GLuint -> Bool -> IO Framebuffer
+createFrameBuffer sizeX sizeY frameBufferTexture giveDepthBuffer = do
 
   frameBuffer <- overPtr (glGenFramebuffers 1)
 
@@ -143,16 +164,17 @@ createFrameBuffer sizeX sizeY frameBufferTexture = do
   glBindFramebuffer GL_FRAMEBUFFER frameBuffer
   glFramebufferTexture2D GL_FRAMEBUFFER GL_COLOR_ATTACHMENT0 GL_TEXTURE_2D frameBufferTexture 0
 
-  -- Generate a render buffer for depth
-  renderBuffer <- overPtr (glGenRenderbuffers 1)
+  when giveDepthBuffer $ do
+    -- Generate a render buffer for depth
+    renderBuffer <- overPtr (glGenRenderbuffers 1)
 
-  -- Configure the depth buffer dimensions to match the eye texture
-  glBindRenderbuffer GL_RENDERBUFFER renderBuffer
-  glRenderbufferStorage GL_RENDERBUFFER GL_DEPTH_COMPONENT16 sizeX sizeY
-  glBindRenderbuffer GL_RENDERBUFFER 0
+    -- Configure the depth buffer dimensions to match the eye texture
+    glBindRenderbuffer GL_RENDERBUFFER renderBuffer
+    glRenderbufferStorage GL_RENDERBUFFER GL_DEPTH_COMPONENT16 sizeX sizeY
+    glBindRenderbuffer GL_RENDERBUFFER 0
 
-  -- Attach the render buffer as the depth target
-  glFramebufferRenderbuffer GL_FRAMEBUFFER GL_DEPTH_ATTACHMENT GL_RENDERBUFFER renderBuffer
+    -- Attach the render buffer as the depth target
+    glFramebufferRenderbuffer GL_FRAMEBUFFER GL_DEPTH_ATTACHMENT GL_RENDERBUFFER renderBuffer
 
   -- Unbind the framebuffer
   glBindFramebuffer GL_FRAMEBUFFER 0

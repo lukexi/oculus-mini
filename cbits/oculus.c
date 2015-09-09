@@ -185,8 +185,8 @@ float *getOrientationAndPositionForEye(HMDInfo *hmdInfo, int i) {
     return poseToArray(hmdInfo->layer.RenderPose[i]);
 }
 
-const float* getHMDPose(ovrHmd hmd) {
-    ovrTrackingState trackingState = ovrHmd_GetTrackingState(hmd, 0.0);
+const float* getHMDPose(HMDInfo *hmdInfo) {
+    ovrTrackingState trackingState = ovrHmd_GetTrackingState(hmdInfo->hmd, 0.0);
     ovrPosef headPose = trackingState.HeadPose.ThePose;
     return poseToArray(headPose);
 }

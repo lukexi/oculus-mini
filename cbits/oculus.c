@@ -197,3 +197,13 @@ const float* getHMDPose(HMDInfo *hmdInfo) {
 void recenterPose(HMDInfo *hmdInfo) {
     ovrHmd_RecenterPose(hmdInfo->hmd);
 }
+
+void setPerformanceHUD(HMDInfo *hmdInfo, int i) {
+    ovrPerfHudMode perfHudMode = ovrPerfHud_Off;
+    if (i == 1) {
+        perfHudMode = ovrPerfHud_LatencyTiming;
+    } else if  (i == 2) {
+        perfHudMode = ovrPerfHud_RenderTiming;
+    }
+    ovrHmd_SetInt(hmdInfo->hmd, "PerfHudMode", (int)perfHudMode);
+}   

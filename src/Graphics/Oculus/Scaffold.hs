@@ -7,6 +7,7 @@ module Graphics.Oculus.Scaffold
   , renderHMDEyes
   , recenterPose
   , renderHMDMirror
+  , setPerformanceHUDMode
   ) where
 
 import Graphics.Oculus.API
@@ -187,3 +188,7 @@ recenterPose = liftIO . recenterPose_raw . hmdInfo
 setViewportForEye :: MonadIO m => Eye -> m ()
 setViewportForEye eye = glViewport x y w h
   where (x,y,w,h) = eyeViewport eye
+
+
+setPerformanceHUDMode :: MonadIO m => HMD -> PerformanceHUDMode -> m ()
+setPerformanceHUDMode hmd perfHUDMode = liftIO $ setPerformanceHUD_raw (hmdInfo hmd) (fromEnum perfHUDMode)

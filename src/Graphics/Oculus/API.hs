@@ -143,4 +143,9 @@ fromMallocedArray len ptr = do
 foreign import ccall "recenterPose"
     recenterPose_raw :: HMDInfo -> IO ()
 
-    
+data PerformanceHUDMode = PerfHUDModeOff
+                        | PerfHUDModeLatency
+                        | PerfHUDModeRender deriving (Eq, Show, Ord, Enum)
+
+foreign import ccall "setPerformanceHUD"
+    setPerformanceHUD_raw :: HMDInfo -> Int -> IO ()

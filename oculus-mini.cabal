@@ -52,19 +52,19 @@ test-suite cube
     mtl,
     bytestring, text, linear, time
 
-test-suite api
-  main-is:             TestAPI.hs
-  hs-source-dirs:      test
-  type:                exitcode-stdio-1.0
-  default-language:    Haskell2010
-  ghc-options:         -O2 -Wall -threaded -rtsopts
-  build-depends:
-    base,
-    oculus-mini,
-    gl,
-    GLFW-b,
-    mtl,
-    bytestring, text, linear, time
+-- test-suite api
+--   main-is:             TestAPI.hs
+--   hs-source-dirs:      test
+--   type:                exitcode-stdio-1.0
+--   default-language:    Haskell2010
+--   ghc-options:         -O2 -Wall -threaded -rtsopts
+--   build-depends:
+--     base,
+--     oculus-mini,
+--     gl,
+--     GLFW-b,
+--     mtl,
+--     bytestring, text, linear, time
 
 test-suite scaffold
   main-is:             TestScaffold.hs

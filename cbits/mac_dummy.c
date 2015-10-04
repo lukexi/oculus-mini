@@ -67,3 +67,7 @@ const float* getHMDPose(HMDInfo *hmdInfo) {
 void recenterPose(HMDInfo *hmdInfo) {
   return;
 }
+
+void setPerformanceHUD(HMDInfo *hmdInfo, int i) {
+  return;
+}

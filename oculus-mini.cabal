@@ -23,7 +23,7 @@ library
     Graphics.Oculus.Scaffold
   -- other-modules:    .   
   other-extensions:    ForeignFunctionInterface
-  build-depends:       base >=4.8 && <4.9, linear, gl, mtl, containers
+  build-depends:       base, linear, gl, mtl, containers
   hs-source-dirs:      src
   -- For windows gcc:
   cc-options:          -std=c99

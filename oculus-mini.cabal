@@ -33,8 +33,10 @@ library
   default-language:    Haskell2010
   if os(windows)
     c-sources:           cbits/oculus.c
-    extra-libraries:     OVRRT64_0_6
-    extra-lib-dirs:      C:\Windows\System32
+    extra-libraries:     LibOVRRT64_0_6
+    extra-lib-dirs:      c:\msys64\usr\local\bin
+    -- Using c:\Windows\System32 screws up MSYS2's loading of its own libraries,
+    -- so use copyLibWin.sh to copy LibOVRRT64_0_6.dll to a cleaner place (/usr/local/bin)
   else
     c-sources: cbits/mac_dummy.c
 
